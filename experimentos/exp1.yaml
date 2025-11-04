@@ -1,0 +1,23 @@
+experimen_name: "ippo_test"
+
+experiment:
+  seed: 42
+  checkpoint_freq: 10
+
+environment:
+  gamma: 0.99
+  horizon: 1000
+  num_agents: 2
+  num_env_runners: 2
+  allow_respawn: False
+
+agent:
+  algorithm: "PPO"
+  policy_type: "MlpPolicy"
+
+hyperparameters:
+  learning_rate: 0.0005
+  # batch_size: 64
+  n_epochs: 5
+  gamma: 0.995
+  clip_param: 0.2

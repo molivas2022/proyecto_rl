@@ -57,3 +57,5 @@ class MetadriveEnvWrapper(MultiAgentEnv):
             self.agents = list(obs_dict.keys())
 
         return obs_dict, rewards_dict, terminateds_dict, truncateds_dict, infos_dict
+
+
