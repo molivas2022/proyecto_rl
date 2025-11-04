@@ -13,15 +13,16 @@ import torch
 import yaml
 from pathlib import Path
 import warnings
+from plot import plot_reward_curve
 
 
 warnings.filterwarnings("ignore")
 
 class IPPOExperiment():
-    def __init__(self, exp_config):
+    def __init__(self, exp_config, env_class):
         self.exp_config = exp_config.copy()
         self.env_config = {}
-        self.env_config["base_env_class"] = MultiAgentIntersectionEnv
+        self.env_config["base_env_class"] = env_class
         self.env_config["num_agents"] = self.exp_config["environment"]["num_agents"]
         self.env_config["allow_respawn"] = self.exp_config["environment"]["allow_respawn"]
 
@@ -73,15 +74,16 @@ class IPPOExperiment():
                 )
 
         algo = config.build()
+        rewards = []
 
         print("Comenzando entrenamiento")
         for i in range(self.exp_config["hyperparameters"]["n_epochs"]):
             result = algo.train()
             print(f"Iteration: {i}")
+            rewards.append(result["env_runners"]["episode_return_mean"])
 
             if (i + 1) % self.exp_config["experiment"]["checkpoint_freq"] == 0:
                 checkpoint_dir = algo.save()
-        
              
         # TODO: Guardar checkpoints más seguido?
         print("Training complete, saving final state")
@@ -90,7 +92,7 @@ class IPPOExperiment():
         algo.stop()
         ray.shutdown()
 
-        return self.final_checkpoint
+        return self.final_checkpoint, rewards
 
     def evaluate(self, checkpoint_path, num_episodes=10):
         ray.init(ignore_reinit_error=True)
@@ -111,5 +113,20 @@ with open(current_dir / "experimentos" / "exp1.yaml") as f:
 
 print(exp_config)
 
-exp = IPPOExperiment(exp_config)
-exp.train()
+exp = IPPOExperiment(exp_config, MultiAgentIntersectionEnv
+)
+_, rewards = exp.train()
+plot_reward_curve(rewards, current_dir / "experimentos" / "resultados.png")
+
+
+
+
+
+
+
+
+
+
+
+
+
