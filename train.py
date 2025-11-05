@@ -14,9 +14,11 @@ import yaml
 from pathlib import Path
 import warnings
 from plot import plot_reward_curve
+from gif_generator import generate_gif
 
 
 warnings.filterwarnings("ignore")
+current_dir = Path.cwd()
 
 class IPPOExperiment():
     def __init__(self, exp_config, env_class):
@@ -79,20 +81,23 @@ class IPPOExperiment():
         print("Comenzando entrenamiento")
         for i in range(self.exp_config["hyperparameters"]["n_epochs"]):
             result = algo.train()
-            print(f"Iteration: {i}")
-            rewards.append(result["env_runners"]["episode_return_mean"])
+            print(f"Iteration: {i + 1}")
+            # Dividir por número de agentes, esto es cosa de gustos en verdad.
+            rewards.append(result["env_runners"]["episode_return_mean"] / self.env_config["num_agents"])
 
             if (i + 1) % self.exp_config["experiment"]["checkpoint_freq"] == 0:
-                checkpoint_dir = algo.save()
+                checkpoint_dir = algo.save_to_path(current_dir / "experimentos" / "checkpoints")
              
         # TODO: Guardar checkpoints más seguido?
         print("Training complete, saving final state")
-        self.final_checkpoint= algo.save()
+        self.final_checkpoint_dir = algo.save_to_path(current_dir / "experimentos" / "checkpoints")
 
         algo.stop()
         ray.shutdown()
 
-        return self.final_checkpoint, rewards
+
+
+        return self.final_checkpoint_dir, rewards
 
     def evaluate(self, checkpoint_path, num_episodes=10):
         ray.init(ignore_reinit_error=True)
@@ -102,7 +107,6 @@ class IPPOExperiment():
 
 
 
-current_dir = Path.cwd()
 print(f"PyTorch version: {torch.__version__}")
 print(f"CUDA available: {torch.cuda.is_available()}")
 print(f"CUDA version: {torch.version.cuda}")
