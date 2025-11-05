@@ -68,8 +68,7 @@ class IPPOExperiment():
                 .training(
                     lr=self.exp_config["hyperparameters"]["learning_rate"],
                     gamma=self.exp_config["hyperparameters"]["gamma"],
-                    clip_param=self.exp_config["hyperparameters"]["clip_param"],
-                    dist_class=TorchSquashedGaussian
+                    clip_param=self.exp_config["hyperparameters"]["clip_param"]
                     )
                 .multi_agent(policies=self.policies, policy_mapping_fn=self.policy_mapping_fn)
                 .environment(env=MetadriveEnvWrapper, env_config=self.env_config)
