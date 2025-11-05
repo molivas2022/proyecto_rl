@@ -1,4 +1,4 @@
-experimen_name: "ippo_test"
+experiment_name: "ippo_test"
 
 experiment:
   seed: 42

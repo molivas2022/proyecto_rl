@@ -30,11 +30,7 @@ def actions_from_distributions(module_dict, obs, env):
         out_dict = module.forward_inference(input_dict)
         dist_params_np = out_dict["action_dist_inputs"].detach().cpu().numpy()[0]
         raw_means = dist_params_np[[0, 1]]
-        greedy_act = np.clip(
-            raw_means,
-            [-1.0, 1.0],
-            [-1.0, 1.0]
-        )
+        greedy_act = np.clip(raw_means, -1.0, 1.0)
 
         action_dict[agent] = greedy_act
 
@@ -82,6 +78,7 @@ def generate_gif(envclass, envconfig, modelpath, savepath, title, seed=42):
 
     # El formato de obs es: obs = dic {agent : observation}
     obs, info = env.reset()
+    pprint(info["agent0"])
 
     terminateds = {"__all__": False}
     truncateds = {"__all__": False}
@@ -119,7 +116,10 @@ if __name__ == "__main__":
 
     generate_gif(
         envclass=MultiAgentIntersectionEnv,
-        envconfig=dict(num_agents=3, allow_respawn=False),
+        envconfig=dict(
+            num_agents=3,
+            allow_respawn=False,
+        ),
         seed=0,
         modelpath=modelpath,
         savepath=str(exp_dir / "example.gif"),
