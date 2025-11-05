@@ -15,6 +15,7 @@ from pathlib import Path
 import warnings
 from plot import plot_reward_curve
 from gif_generator import generate_gif
+from ray.rllib.models.torch.torch_distributions import TorchSquashedGaussian
 
 
 warnings.filterwarnings("ignore")
@@ -67,7 +68,8 @@ class IPPOExperiment():
                 .training(
                     lr=self.exp_config["hyperparameters"]["learning_rate"],
                     gamma=self.exp_config["hyperparameters"]["gamma"],
-                    clip_param=self.exp_config["hyperparameters"]["clip_param"]
+                    clip_param=self.exp_config["hyperparameters"]["clip_param"],
+                    dist_class=TorchSquashedGaussian
                     )
                 .multi_agent(policies=self.policies, policy_mapping_fn=self.policy_mapping_fn)
                 .environment(env=MetadriveEnvWrapper, env_config=self.env_config)

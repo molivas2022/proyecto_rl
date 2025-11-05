@@ -20,21 +20,25 @@ import os
 from pprint import pprint
 import torch
 
-def actions_from_distributions(module_dict, obs):
+
+def actions_from_distributions(module_dict, obs, env):
     action_dict = {}
 
     for agent in obs:
         module = module_dict[agent]
         input_dict = {Columns.OBS: torch.from_numpy(obs[agent]).unsqueeze(0)}
         out_dict = module.forward_inference(input_dict)
-        # Las medias de las distribuciones para cada acción.
-        act1_mean = out_dict["action_dist_inputs"][0][0].item()
-        act2_mean = out_dict["action_dist_inputs"][0][2].item()
-        action_dict[agent] = [act1_mean, act2_mean]
+        dist_params_np = out_dict["action_dist_inputs"].detach().cpu().numpy()[0]
+        raw_means = dist_params_np[[0, 1]]
+        greedy_act = np.clip(
+            raw_means,
+            [-1.0, 1.0],
+            [-1.0, 1.0]
+        )
 
+        action_dict[agent] = greedy_act
 
     return action_dict
-
 
 
 def generate_gif(envclass, envconfig, modelpath, savepath, title, seed=42):
@@ -71,15 +75,13 @@ def generate_gif(envclass, envconfig, modelpath, savepath, title, seed=42):
     except Exception as e:
         print(f"====ERROR: no se pudo cargar el checkpoint.====\n {e}")
         raise
-    
+
     module_dict = {}
     for i in range(envconfig["num_agents"]):
         module_dict[f"agent{i}"] = algo.get_module(f"policy_{i}")
 
-
     # El formato de obs es: obs = dic {agent : observation}
     obs, info = env.reset()
-
 
     terminateds = {"__all__": False}
     truncateds = {"__all__": False}
@@ -87,7 +89,7 @@ def generate_gif(envclass, envconfig, modelpath, savepath, title, seed=42):
     while not (terminateds["__all__"] or truncateds["__all__"]):
 
         # obtener acciones dic {agent : action}
-        actions = actions_from_distributions(module_dict, obs)
+        actions = actions_from_distributions(module_dict, obs, env)
 
         # ejecutar step
         obs, rewards, terminateds, truncateds, infos = env.step(actions)

@@ -2,10 +2,9 @@ experimen_name: "ippo_test"
 
 experiment:
   seed: 42
-  checkpoint_freq: 1
+  checkpoint_freq: 25
 
 environment:
-  gamma: 0.99
   horizon: 1000
   num_agents: 3
   num_env_runners: 2
@@ -16,8 +15,8 @@ agent:
   policy_type: "MlpPolicy"
 
 hyperparameters:
-  learning_rate: 0.0005
+  learning_rate: 0.05
   # batch_size: 64
-  n_epochs: 1
+  n_epochs: 100
   gamma: 0.995
   clip_param: 0.2
