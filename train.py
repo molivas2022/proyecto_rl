@@ -21,7 +21,8 @@ warnings.filterwarnings("ignore")
 current_dir = Path.cwd()
 
 class IPPOExperiment():
-    def __init__(self, exp_config, env_class):
+    def __init__(self, exp_config, env_class, exp_dir):
+        self.exp_dir = exp_dir
         self.exp_config = exp_config.copy()
         self.env_config = {}
         self.env_config["base_env_class"] = env_class
@@ -86,11 +87,11 @@ class IPPOExperiment():
             rewards.append(result["env_runners"]["episode_return_mean"] / self.env_config["num_agents"])
 
             if (i + 1) % self.exp_config["experiment"]["checkpoint_freq"] == 0:
-                checkpoint_dir = algo.save_to_path(current_dir / "experimentos" / "checkpoints")
+                checkpoint_dir = algo.save_to_path(self.exp_dir / "checkpoints" / f"{i + 1}")
              
         # TODO: Guardar checkpoints más seguido?
         print("Training complete, saving final state")
-        self.final_checkpoint_dir = algo.save_to_path(current_dir / "experimentos" / "checkpoints")
+        self.final_checkpoint_dir = algo.save_to_path(self.exp_dir / "checkpoints" / "final")
 
         algo.stop()
         ray.shutdown()
@@ -112,15 +113,14 @@ print(f"CUDA available: {torch.cuda.is_available()}")
 print(f"CUDA version: {torch.version.cuda}")
 
 
-with open(current_dir / "experimentos" / "exp1.yaml") as f:
+exp_dir = current_dir / "experimentos" / "exp1"
+
+with open(exp_dir / "exp1.yaml") as f:
     exp_config = yaml.load(f, Loader=yaml.SafeLoader)
 
-print(exp_config)
-
-exp = IPPOExperiment(exp_config, MultiAgentIntersectionEnv
-)
+exp = IPPOExperiment(exp_config, MultiAgentIntersectionEnv, exp_dir)
 _, rewards = exp.train()
-plot_reward_curve(rewards, current_dir / "experimentos" / "resultados.png")
+plot_reward_curve(rewards, exp_dir / "resultados.png")
 
 
 

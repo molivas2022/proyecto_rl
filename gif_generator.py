@@ -98,7 +98,7 @@ def generate_gif(envclass, envconfig, modelpath, savepath, title, seed=42):
             mode="topdown",
             scaling=2,
             camera_position=(100, 0),
-            screen_size=(1000, 1000),
+            screen_size=(500, 500),
             screen_record=True,
             text={"episode_step": env.engine.episode_step, "method": title},
         )
@@ -106,19 +106,20 @@ def generate_gif(envclass, envconfig, modelpath, savepath, title, seed=42):
     algo.stop()
 
     print("Rendering environment to gif")
-    env.top_down_renderer.generate_gif()
+    env.top_down_renderer.generate_gif(savepath)
     print("Rendering done, stopping algorithm and closing environment...")
     env.close()
 
 
 if __name__ == "__main__":
-    modelpath = Path.cwd() / "experimentos" / "checkpoints"
+    exp_dir = Path.cwd() / "experimentos" / "exp1"
+    modelpath = exp_dir / "checkpoints" / "final"
 
     generate_gif(
         envclass=MultiAgentIntersectionEnv,
-        envconfig=dict(num_agents=2, allow_respawn=False),
+        envconfig=dict(num_agents=3, allow_respawn=False),
         seed=0,
         modelpath=modelpath,
-        savepath="example.gif",
-        title="TEST",
+        savepath=str(exp_dir / "example.gif"),
+        title="IPPO",
     )
