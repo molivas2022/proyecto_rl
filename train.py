@@ -67,9 +67,13 @@ class IPPOExperiment:
         config = (
             PPOConfig()
             .training(
-                lr=self.exp_config["hyperparameters"]["learning_rate"],
+                #lr=self.exp_config["hyperparameters"]["learning_rate"],
                 gamma=self.exp_config["hyperparameters"]["gamma"],
                 clip_param=self.exp_config["hyperparameters"]["clip_param"],
+                lr=[
+                    [0, self.exp_config["hyperparameters"]["learning_rate"]],
+                    [9600, self.exp_config["hyperparameters"]["learning_rate"] / 10],
+                ],
             )
             .multi_agent(
                 policies=self.policies, policy_mapping_fn=self.policy_mapping_fn
@@ -99,7 +103,10 @@ class IPPOExperiment:
 
             if (i + 1) % self.exp_config["experiment"]["checkpoint_freq"] == 0:
                 pd.DataFrame(
-                    {"Iteration": range(1, len(rewards) + 1), "Avg reward per episode": rewards}
+                    {
+                        "Iteration": range(1, len(rewards) + 1),
+                        "Avg reward per episode": rewards,
+                    }
                 ).to_csv(rewards_csv_dir, index=False)
 
                 checkpoint_dir = algo.save_to_path(
