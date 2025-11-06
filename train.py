@@ -137,9 +137,9 @@ if torch.cuda.is_available():
     print(f"CUDA GPU: {torch.cuda.get_device_name()}")
 
 
-exp_dir = current_dir / "experimentos" / "exp1"
+exp_dir = current_dir / "experimentos" / "exp2"
 
-with open(exp_dir / "exp1.yaml") as f:
+with open(exp_dir / "exp.yaml") as f:
     exp_config = yaml.load(f, Loader=yaml.SafeLoader)
 
 exp = IPPOExperiment(exp_config, MultiAgentIntersectionEnv, exp_dir)
