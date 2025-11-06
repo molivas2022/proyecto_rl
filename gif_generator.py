@@ -19,22 +19,9 @@ from ray.rllib.core.columns import Columns
 import os
 from pprint import pprint
 import torch
-
-
-def actions_from_distributions(module_dict, obs, env):
-    action_dict = {}
-
-    for agent in obs:
-        module = module_dict[agent]
-        input_dict = {Columns.OBS: torch.from_numpy(obs[agent]).unsqueeze(0)}
-        out_dict = module.forward_inference(input_dict)
-        dist_params_np = out_dict["action_dist_inputs"].detach().cpu().numpy()[0]
-        raw_means = dist_params_np[[0, 1]]
-        greedy_act = np.clip(raw_means, -1.0, 1.0)
-
-        action_dict[agent] = greedy_act
-
-    return action_dict
+from tqdm import tqdm
+import numpy as np
+from utils import actions_from_distributions, execute_one_episode
 
 
 def generate_gif(envclass, envconfig, modelpath, savepath, title, seed=42):
@@ -76,31 +63,9 @@ def generate_gif(envclass, envconfig, modelpath, savepath, title, seed=42):
     for i in range(envconfig["num_agents"]):
         module_dict[f"agent{i}"] = algo.get_module(f"policy_{i}")
 
-    # El formato de obs es: obs = dic {agent : observation}
-    obs, info = env.reset()
-    pprint(info["agent0"])
+    env, _ = execute_one_episode(env, module_dict, title, enable_render = True)
 
-    terminateds = {"__all__": False}
-    truncateds = {"__all__": False}
-
-    while not (terminateds["__all__"] or truncateds["__all__"]):
-
-        # obtener acciones dic {agent : action}
-        actions = actions_from_distributions(module_dict, obs, env)
-
-        # ejecutar step
-        obs, rewards, terminateds, truncateds, infos = env.step(actions)
-
-        # configuraciones de renderizado y renderizar
-        env.render(
-            window=False,
-            mode="topdown",
-            scaling=2,
-            camera_position=(100, 0),
-            screen_size=(500, 500),
-            screen_record=True,
-            text={"episode_step": env.engine.episode_step, "method": title},
-        )
+    env.top_down_renderer.generate_gif(savepath)
 
     algo.stop()
 
@@ -123,5 +88,5 @@ if __name__ == "__main__":
         seed=0,
         modelpath=modelpath,
         savepath=str(exp_dir / "example.gif"),
-        title="IPPO",
+       title="IPPO",
     )
