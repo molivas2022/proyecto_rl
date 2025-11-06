@@ -54,7 +54,7 @@ def compute_episode_metrics(infos):
         agent_metrics[agent_id] = {
             "avg_velocity": np.mean(values["velocity"]),
             "avg_acceleration": np.mean(values["acceleration"]),
-            "avg_route_completion": np.mean(values["route_completion"]),
+            "route_completion": values["route_completion"][-1],
             "total_energy": np.sum(values["energy"]),
         }
 
@@ -65,7 +65,7 @@ def compute_episode_metrics(infos):
             [m["avg_acceleration"] for m in agent_metrics.values()]
         ),
         "avg_route_completion": np.mean(
-            [m["avg_route_completion"] for m in agent_metrics.values()]
+            [m["route_completion"] for m in agent_metrics.values()]
         ),
         "total_energy": np.sum([m["total_energy"] for m in agent_metrics.values()]),
     }

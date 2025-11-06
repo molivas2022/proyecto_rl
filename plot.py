@@ -36,7 +36,7 @@ def plot_route_completion_curve(csv_path, out_path):
     ax = sns.lineplot(
         data=df, x="Iteration", y="Average route completion", marker="o", lw=2
     )
-    ax.set_xlim(left=1)
+    ax.set_xlim(left=20)
     ax.set_title("Completación de Ruta Promedio por Iteración", fontsize=16)
     ax.set_xlabel("Iteración de Entrenamiento (Epoch)", fontsize=12)
     ax.set_ylabel("Completación de ruta promedio", fontsize=12)
@@ -55,6 +55,6 @@ if __name__ == "__main__":
     plot_route_completion_curve(
         route_completion_csv_path, exp_dir / "route_completion_checkpoints.png"
     )
-    best_checkpoint, best_reward = get_best_checkpoint(rewards_csv_path, 50)
+    best_checkpoint, best_reward = get_best_checkpoint(rewards_csv_path, 20)
 
     print(f"best reward at checkpoint {best_checkpoint} with reward {best_reward}")
