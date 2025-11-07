@@ -153,17 +153,10 @@ class IPPOExperiment:
         )
 
         algo = config.build()
-        rewards = []
-        # rewards_csv_dir = self.exp_dir / "rewards_log.csv"
 
         print("Commencing training")
         for i in range(self.exp_config["hyperparameters"]["n_epochs"]):
             result = algo.train()
-            reward = (
-                result["env_runners"]["episode_return_mean"]
-                / self.env_config["num_agents"]
-            )
-            rewards.append(reward)
 
             if (i + 1) % self.exp_config["experiment"]["checkpoint_freq"] == 0:
                 checkpoint_dir = algo.save_to_path(
