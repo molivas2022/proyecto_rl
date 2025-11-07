@@ -22,6 +22,70 @@ import pandas as pd
 warnings.filterwarnings("ignore")
 current_dir = Path.cwd()
 
+EXP_DIR = current_dir / "experimentos" / "exp2"
+
+# Guardamos logs en memoria persistente cada 10 calls de logger (en este caso, cada 10 iteraciones de training)
+LOG_SAVE_FREQUENCY = 1
+
+# TODO: Agregar on_algo_end (creo que se debe llamar algo asi), por ahora simplemente puse frequencia de guardado 1.
+class PPOMetricsLogger(RLlibCallback):
+    def __init__(self):
+        super().__init__()
+        self.rewards_df = pd.DataFrame(columns=["training_iteration", "reward_mean"])
+        self.policy_data_to_log = [
+            "mean_kl_loss",
+            "policy_loss",
+            "vf_loss",
+            "total_loss",
+        ]
+        self.policy_data_df = pd.DataFrame(
+            columns=["training_iteration", "policy"] + self.policy_data_to_log
+        )
+
+        self.save_path = EXP_DIR
+        self.save_frequency = LOG_SAVE_FREQUENCY
+        self.calls_since_last_save = 0
+
+    def update_reward_data(self, training_iteration, reward_mean):
+        new_row = pd.Series(
+            {"training_iteration": training_iteration, "reward_mean": reward_mean}
+        )
+        self.rewards_df = pd.concat([self.rewards_df, new_row.to_frame().T])
+
+    def update_policy_data(self, training_iteration, policy_data):
+        for policy in policy_data.keys():
+            logs = policy_data[policy]
+            data = {key: logs[key] for key in self.policy_data_to_log}
+            data["training_iteration"] = training_iteration
+            data["policy"] = policy
+            new_row = pd.Series(data)
+            self.policy_data_df = pd.concat([self.policy_data_df, new_row.to_frame().T])
+
+    def save_data(self):
+        if self.calls_since_last_save < self.save_frequency:
+            return
+
+        self.rewards_df.to_csv(self.save_path / "rewards_log.csv", index=False)
+        self.policy_data_df.to_csv(self.save_path / "policy_log.csv", index=False)
+        self.calls_since_last_save = 0
+
+    def on_train_result(self, *, algorithm, metrics_logger, result, **kwargs):
+        training_iteration = result["training_iteration"]
+        policies = set(result["config"]["policies"].keys())
+        policy_data = {}
+
+        reward_mean = result["env_runners"]["episode_return_mean"]
+        print(f"Iteration {training_iteration} finished, with reward: {reward_mean}")
+
+        for policy, logs in result["learners"].items():
+            if policy in policies:
+                policy_data[policy] = logs
+
+        self.update_reward_data(training_iteration, reward_mean)
+        self.update_policy_data(training_iteration, policy_data)
+        self.calls_since_last_save += 1
+        self.save_data()
+
 
 class IPPOExperiment:
     def __init__(self, exp_config, env_class, exp_dir):
@@ -34,6 +98,7 @@ class IPPOExperiment:
         self.env_config["allow_respawn"] = self.exp_config["environment"][
             "allow_respawn"
         ]
+        self.env_config["horizon"] = self.exp_config["environment"]["horizon"]
 
         self.policies = {}
 
@@ -67,12 +132,12 @@ class IPPOExperiment:
         config = (
             PPOConfig()
             .training(
-                #lr=self.exp_config["hyperparameters"]["learning_rate"],
+                # lr=self.exp_config["hyperparameters"]["learning_rate"],
                 gamma=self.exp_config["hyperparameters"]["gamma"],
                 clip_param=self.exp_config["hyperparameters"]["clip_param"],
                 lr=[
                     [0, self.exp_config["hyperparameters"]["learning_rate"]],
-                    [9600, self.exp_config["hyperparameters"]["learning_rate"] / 10],
+                    [15000, self.exp_config["hyperparameters"]["learning_rate"] / 10],
                 ],
             )
             .multi_agent(
@@ -84,11 +149,12 @@ class IPPOExperiment:
             .env_runners(
                 num_env_runners=self.exp_config["environment"]["num_env_runners"]
             )
+            .callbacks(PPOMetricsLogger)
         )
 
         algo = config.build()
         rewards = []
-        rewards_csv_dir = self.exp_dir / "rewards_log.csv"
+        # rewards_csv_dir = self.exp_dir / "rewards_log.csv"
 
         print("Commencing training")
         for i in range(self.exp_config["hyperparameters"]["n_epochs"]):
@@ -97,26 +163,14 @@ class IPPOExperiment:
                 result["env_runners"]["episode_return_mean"]
                 / self.env_config["num_agents"]
             )
-            print(f"Iteration: {i + 1} finished, with reward: {reward}")
-            # Dividir por número de agentes, esto es cosa de gustos en verdad.
             rewards.append(reward)
 
             if (i + 1) % self.exp_config["experiment"]["checkpoint_freq"] == 0:
-                pd.DataFrame(
-                    {
-                        "Iteration": range(1, len(rewards) + 1),
-                        "Avg reward per episode": rewards,
-                    }
-                ).to_csv(rewards_csv_dir, index=False)
-
                 checkpoint_dir = algo.save_to_path(
                     self.exp_dir / "checkpoints" / f"{i + 1}"
                 )
 
         print("Training complete, saving final state and logs")
-        pd.DataFrame(
-            {"Iteration": range(1, len(rewards) + 1), "Avg reward per episode": rewards}
-        ).to_csv(rewards_csv_dir, index=False)
         self.final_checkpoint_dir = algo.save_to_path(
             self.exp_dir / "checkpoints" / "final"
         )
@@ -124,10 +178,7 @@ class IPPOExperiment:
         algo.stop()
         ray.shutdown()
 
-        return self.final_checkpoint_dir, rewards_csv_dir
-
-    def evaluate(self, checkpoint_path, num_episodes=10):
-        ray.init(ignore_reinit_error=True)
+        return self.final_checkpoint_dir
 
 
 print(f"PyTorch version: {torch.__version__}")
@@ -137,12 +188,10 @@ if torch.cuda.is_available():
     print(f"CUDA GPU: {torch.cuda.get_device_name()}")
 
 
-exp_dir = current_dir / "experimentos" / "exp2"
-
-with open(exp_dir / "exp.yaml") as f:
+with open(EXP_DIR / "exp.yaml") as f:
     exp_config = yaml.load(f, Loader=yaml.SafeLoader)
 
-exp = IPPOExperiment(exp_config, MultiAgentIntersectionEnv, exp_dir)
-_, rewards_csv_dir = exp.train()
+exp = IPPOExperiment(exp_config, MultiAgentIntersectionEnv, EXP_DIR)
+_ = exp.train()
 
-plot_reward_curve(rewards_csv_dir, exp_dir / "resultados.png")
+# plot_reward_curve(rewards_csv_dir, exp_dir / "resultados.png")
