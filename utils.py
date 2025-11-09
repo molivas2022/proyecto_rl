@@ -22,6 +22,100 @@ import torch
 from tqdm import tqdm
 import numpy as np
 
+
+def transfer_module_weights(source_algo, target_algo, module_ids_to_transfer, idol):
+    """
+    Transfiere los módulos desde un source algorithm, sobreescribiendo los pesos del target algorithm.
+    Útil para no tener que hacer uso de Algorithm.from_checkpoint(), el cual importa todo el config.
+    En caso de que cardinalidad de policies sea distinto en ambos modelos, para simplificar las cosas,
+    se define una policy "idol" en source_algo, el cual sobreescribe todas las politicas del target.
+
+    Es importante actualizar el LearnerGroup (quiene sostienen la copia maestra de los pesos), y sincronizar
+    con el EnvRunnerGroup
+    """
+
+    print("Iniciando transferencia de pesos")
+
+    # Obtener los estados de los módulos del learner de origen
+    print("Obteniendo estado del LearnerGroup de origen...")
+    try:
+        source_learner_state = source_algo.learner_group.get_state()
+        source_module_states = source_learner_state[COMPONENT_LEARNER][
+            COMPONENT_RL_MODULE
+        ]
+    except Exception as e:
+        print(f"Error al obtener el estado del LearnerGroup de origen: {e}")
+        return
+
+    # Mapear los estados de origen a los módulos de destino
+    states_to_transfer = {}
+    print("Mapeando estados de origen a módulos de destino...")
+    for module_id in module_ids_to_transfer:
+        idol_id = idol if idol else module_id
+
+        if idol_id in source_module_states:
+            states_to_transfer[module_id] = source_module_states[idol_id]
+            print(f"  - Mapeando '{module_id}' (destino) <-- '{idol_id}' (origen)")
+        else:
+            print(
+                f"ADVERTENCIA: Módulo '{idol_id}' no encontrado en el Learner de origen. Saltando '{module_id}'."
+            )
+
+    if not states_to_transfer:
+        print("No hay estados para transferir. Abortando.")
+        return
+
+    # Definimos una función de actualización para los Learners de destino
+    def update_learner_modules(learner, *, states_to_set):
+        # learner es la instancia del objeto Learner
+        print(f"[Learner] Aplicando {len(states_to_set)} estados de módulo...")
+        for module_id, state_to_load in states_to_set.items():
+            if module_id in learner.module:
+                try:
+                    learner.module[module_id].set_state(state_to_load)
+                    print(f"[Learner] Estado aplicado exitosamente a {module_id}")
+                except Exception as e:
+                    print(f"[Learner] Error al aplicar estado a {module_id}: {e}")
+            else:
+                print(
+                    f"[Learner] ADVERTENCIA: Módulo {module_id} no encontrado en este Learner."
+                )
+
+    # Ejecutar la actualización en *todos* los workers del LearnerGroup de destino
+
+    # Aplicar a todos los LEARNERS REMOTOS (si existen)
+    print(
+        "Ejecutando 'set_state' en todos los workers remotos del LearnerGroup (si existen)..."
+    )
+    target_algo.learner_group.foreach_learner(
+        update_learner_modules, states_to_set=states_to_transfer
+    )
+
+    # Aplicar al LEARNER LOCAL (si existe)
+    if target_algo.learner_group._learner:
+        print("Aplicando 'set_state' al worker local del LearnerGroup...")
+        update_learner_modules(
+            target_algo.learner_group._learner, states_to_set=states_to_transfer
+        )
+
+    print("Actualización del LearnerGroup completada.")
+
+    # Esto es lo último: Sincronizar los pesos del LearnerGroup al EnvRunnerGroup
+    print("Sincronizando pesos del LearnerGroup actualizado al EnvRunnerGroup...")
+    try:
+        updated_weights = target_algo.learner_group.get_weights()
+
+        # Aplicarlos a todos los EnvRunners (incluido el local)
+        # 'local_worker=True' aquí SÍ es correcto para EnvRunnerGroup
+        target_algo.env_runner_group.set_weights(updated_weights, local_worker=True)
+
+        print("Sincronización con EnvRunnerGroup completada.")
+    except Exception as e:
+        print(f"Error durante la sincronización de pesos a EnvRuners: {e}")
+
+    print("--- Transferencia de pesos completada ---")
+
+
 def actions_from_distributions(module_dict, obs, env):
     action_dict = {}
 
@@ -37,8 +131,9 @@ def actions_from_distributions(module_dict, obs, env):
 
     return action_dict
 
+
 # Esto hay que cambiarlo de archivo despues jejej
-def execute_one_episode(env, module_dict, title = None, enable_render = False):
+def execute_one_episode(env, module_dict, title=None, enable_render=False):
 
     obs, info = env.reset()
 
@@ -55,7 +150,7 @@ def execute_one_episode(env, module_dict, title = None, enable_render = False):
         infos_list.append(infos)
 
         # configuraciones de renderizado y renderizar
-        if (enable_render):
+        if enable_render:
             env.render(
                 window=False,
                 mode="topdown",
@@ -67,5 +162,3 @@ def execute_one_episode(env, module_dict, title = None, enable_render = False):
             )
 
     return env, infos_list
-
-

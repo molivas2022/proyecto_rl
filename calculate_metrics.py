@@ -122,24 +122,31 @@ def calculate_metrics(epochs, envclass, envconfig, modelpath, seed=42):
 
 
 if __name__ == "__main__":
-    exp_dir = Path.cwd() / "experimentos" / "exp2"
+    exp_dir = Path.cwd() / "experimentos" / "exp5"
+    checkpoint_freq = 20
+    last_checkpoint = 500
+    num_agents = 5
 
     metrics_dict = {}
     route_completion_list = []
-    for i in range(20, 201, 20):
+    for i in range(checkpoint_freq, last_checkpoint + 1, checkpoint_freq):
         modelpath = exp_dir / "checkpoints" / str(i)
 
         metrics = calculate_metrics(
             epochs=20,
             envclass=MultiAgentIntersectionEnv,
-            envconfig=dict(num_agents=3, allow_respawn=False),
+            envconfig=dict(
+                num_agents=num_agents, allow_respawn=False, traffic_density=0.1
+            ),
             modelpath=modelpath,
         )
         avg_route_completion = metrics["avg_route_completion"]
         route_completion_list.append(avg_route_completion)
 
     data = {
-        "Iteration": [i for i in range(20, 201, 20)],
+        "Iteration": [
+            i for i in range(checkpoint_freq, last_checkpoint + 1, checkpoint_freq)
+        ],
         "Average route completion": route_completion_list,
     }
     pd.DataFrame(data).to_csv(exp_dir / "checkpoint_metrics.csv", index=False)
