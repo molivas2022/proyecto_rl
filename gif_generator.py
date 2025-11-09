@@ -62,8 +62,9 @@ def generate_gif(envclass, envconfig, modelpath, savepath, title, seed=42):
     module_dict = {}
     for i in range(envconfig["num_agents"]):
         module_dict[f"agent{i}"] = algo.get_module(f"policy_{i}")
+        # print(algo.get_module(f"policy_{i}"))
 
-    env, _ = execute_one_episode(env, module_dict, title, enable_render = True)
+    env, _ = execute_one_episode(env, module_dict, title, enable_render=True)
 
     env.top_down_renderer.generate_gif(savepath)
 
@@ -76,17 +77,21 @@ def generate_gif(envclass, envconfig, modelpath, savepath, title, seed=42):
 
 
 if __name__ == "__main__":
-    exp_dir = Path.cwd() / "experimentos" / "exp2"
-    modelpath = exp_dir / "checkpoints" / "final"
+    exp_dir = Path.cwd() / "experimentos" / "exp5"
+    modelpath = exp_dir / "checkpoints" / "240"
 
-    generate_gif(
-        envclass=MultiAgentIntersectionEnv,
-        envconfig=dict(
-            num_agents=3,
-            allow_respawn=False,
-        ),
-        seed=0,
-        modelpath=modelpath,
-        savepath=str(exp_dir / "example.gif"),
-       title="IPPO",
-    )
+    for i in range(5):
+        generate_gif(
+            envclass=MultiAgentIntersectionEnv,
+            envconfig=dict(
+                num_agents=5,
+                allow_respawn=False,
+                random_spawn_lane_index=True,
+                start_seed=57,
+                traffic_density=0,
+            ),
+            seed=0,
+            modelpath=modelpath,
+            savepath=str(exp_dir / f"example_{i}.gif"),
+            title="IPPO",
+        )

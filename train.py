@@ -1,5 +1,6 @@
 import ray
 from ray.rllib.algorithms.ppo import PPOConfig
+from ray.rllib.algorithms.algorithm import Algorithm
 from ray.rllib.policy.policy import PolicySpec
 from ray.rllib.env import MultiAgentEnv
 from metadrive import (
@@ -17,15 +18,17 @@ from plot import plot_reward_curve
 from gif_generator import generate_gif
 from ray.rllib.callbacks.callbacks import RLlibCallback
 import pandas as pd
+from utils import transfer_module_weights
 
 
 warnings.filterwarnings("ignore")
 current_dir = Path.cwd()
 
-EXP_DIR = current_dir / "experimentos" / "exp2"
+EXP_DIR = current_dir / "experimentos" / "exp5"
 
 # Guardamos logs en memoria persistente cada 10 calls de logger (en este caso, cada 10 iteraciones de training)
 LOG_SAVE_FREQUENCY = 1
+
 
 # TODO: Agregar on_algo_end (creo que se debe llamar algo asi), por ahora simplemente puse frequencia de guardado 1.
 class PPOMetricsLogger(RLlibCallback):
@@ -74,7 +77,7 @@ class PPOMetricsLogger(RLlibCallback):
         policies = set(result["config"]["policies"].keys())
         policy_data = {}
 
-        reward_mean = result["env_runners"]["episode_return_mean"]
+        reward_mean = result["env_runners"]["episode_return_mean"] / len(policies)
         print(f"Iteration {training_iteration} finished, with reward: {reward_mean}")
 
         for policy, logs in result["learners"].items():
@@ -88,10 +91,12 @@ class PPOMetricsLogger(RLlibCallback):
 
 
 class IPPOExperiment:
-    def __init__(self, exp_config, env_class, exp_dir):
+    def __init__(self, exp_config, env_class, exp_dir, start_from_checkpoint=False):
         self.exp_dir = exp_dir
         self.exp_config = exp_config.copy()
         self.env_config = {}
+
+        # TODO: Dejar de hardcodear todos los fields del env_config
         self.env_config["base_env_class"] = env_class
         self.env_config["base_env_class"] = env_class
         self.env_config["num_agents"] = self.exp_config["environment"]["num_agents"]
@@ -99,6 +104,10 @@ class IPPOExperiment:
             "allow_respawn"
         ]
         self.env_config["horizon"] = self.exp_config["environment"]["horizon"]
+        self.env_config["traffic_density"] = self.exp_config["environment"][
+            "traffic_density"
+        ]
+        self.start_from_checkpoint = start_from_checkpoint
 
         self.policies = {}
 
@@ -137,8 +146,10 @@ class IPPOExperiment:
                 clip_param=self.exp_config["hyperparameters"]["clip_param"],
                 lr=[
                     [0, self.exp_config["hyperparameters"]["learning_rate"]],
-                    [15000, self.exp_config["hyperparameters"]["learning_rate"] / 10],
+                    [15000, self.exp_config["hyperparameters"]["learning_rate"]],
                 ],
+                entropy_coeff=self.exp_config["hyperparameters"]["entropy_coeff"],
+                minibatch_size=self.exp_config["hyperparameters"]["minibatch_size"],
             )
             .multi_agent(
                 policies=self.policies, policy_mapping_fn=self.policy_mapping_fn
@@ -153,6 +164,30 @@ class IPPOExperiment:
         )
 
         algo = config.build()
+
+        # Si empezamos de un checkpoint, cargamos los parámetros de los RLModules, no usar from_checkpoint directamente, eso NO nos gusta!
+        if self.start_from_checkpoint:
+
+            source_algo = Algorithm.from_checkpoint(self.exp_dir / "base_checkpoint")
+            module_source = source_algo.get_module("policy_0")
+            # print("### Source module state ###")
+            # pprint(module_source.get_state())
+
+            # Si hay mismatch entre cantidad de políticas, definimos un idol arbitrario.
+            idol = None
+            if len(self.policies) != len(source_algo.config.policies):
+                idol = "policy_0"
+
+            transfer_module_weights(source_algo, algo, self.policies, idol)
+            source_algo.stop()
+
+            module_now = algo.get_module("policy_0")
+            # print("### After transfer target module state ###")
+            # pprint(module_now.get_state())
+
+        # "Checkpoint" inicial para debugging, más que nada
+        checkpoint_dir = algo.save_to_path(self.exp_dir / "checkpoints" / "0")
+        rewards = []
 
         print("Commencing training")
         for i in range(self.exp_config["hyperparameters"]["n_epochs"]):
@@ -184,7 +219,7 @@ if torch.cuda.is_available():
 with open(EXP_DIR / "exp.yaml") as f:
     exp_config = yaml.load(f, Loader=yaml.SafeLoader)
 
-exp = IPPOExperiment(exp_config, MultiAgentIntersectionEnv, EXP_DIR)
+exp = IPPOExperiment(exp_config, MultiAgentIntersectionEnv, EXP_DIR, True)
 _ = exp.train()
 
 # plot_reward_curve(rewards_csv_dir, exp_dir / "resultados.png")
