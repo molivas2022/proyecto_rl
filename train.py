@@ -146,7 +146,7 @@ class IPPOExperiment:
                 clip_param=self.exp_config["hyperparameters"]["clip_param"],
                 lr=[
                     [0, self.exp_config["hyperparameters"]["learning_rate"]],
-                    [15000, self.exp_config["hyperparameters"]["learning_rate"] / 10],
+                    [15000, self.exp_config["hyperparameters"]["learning_rate"]],
                 ],
                 entropy_coeff=self.exp_config["hyperparameters"]["entropy_coeff"],
                 minibatch_size=self.exp_config["hyperparameters"]["minibatch_size"],
@@ -164,6 +164,7 @@ class IPPOExperiment:
         )
 
         algo = config.build()
+        print(algo.config.minibatch_size)
 
         # Si empezamos de un checkpoint, cargamos los parámetros de los RLModules, no usar from_checkpoint directamente, eso NO nos gusta!
         if self.start_from_checkpoint:

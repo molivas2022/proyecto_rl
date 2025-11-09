@@ -13,6 +13,10 @@ from ray.rllib.core import (
     COMPONENT_RL_MODULE,
     DEFAULT_MODULE_ID,
 )
+
+from ray.rllib.core.learner.learner import (
+    COMPONENT_OPTIMIZER,
+)
 from ray.rllib.core.rl_module.rl_module import RLModule
 from ray.rllib.core.rl_module.multi_rl_module import MultiRLModule
 from ray.rllib.core.columns import Columns
@@ -25,89 +29,115 @@ import numpy as np
 
 def transfer_module_weights(source_algo, target_algo, module_ids_to_transfer, idol):
     """
-    Transfiere los módulos desde un source algorithm, sobreescribiendo los pesos del target algorithm.
-    Útil para no tener que hacer uso de Algorithm.from_checkpoint(), el cual importa todo el config.
-    En caso de que cardinalidad de policies sea distinto en ambos modelos, para simplificar las cosas,
-    se define una policy "idol" en source_algo, el cual sobreescribe todas las politicas del target.
+    Transfiere los módulos Y LOS ESTADOS DEL OPTIMIZADOR desde un source algorithm,
+    sobreescribiendo los pesos del target algorithm.
 
-    Es importante actualizar el LearnerGroup (quiene sostienen la copia maestra de los pesos), y sincronizar
-    con el EnvRunnerGroup
+    Esta función actualiza el LearnerGroup (la "fuente de verdad" de los pesos) y
+    luego sincroniza esos pesos con el EnvRunnerGroup (para inferencia y verificación).
     """
+    print("--- Iniciando transferencia de pesos y optimizador ---")
 
-    print("Iniciando transferencia de pesos")
-
-    # Obtener los estados de los módulos del learner de origen
+    # --- PASO 1: Obtener el ESTADO COMPLETO DEL LEARNER de origen ---
     print("Obteniendo estado del LearnerGroup de origen...")
     try:
-        source_learner_state = source_algo.learner_group.get_state()
-        source_module_states = source_learner_state[COMPONENT_LEARNER][
-            COMPONENT_RL_MODULE
-        ]
+        # Obtenemos el estado del primer (o único) Learner.
+        # Esto incluye RL_MODULE, OPTIMIZER, y más.
+        source_learner_state = source_algo.learner_group.get_state()[COMPONENT_LEARNER]
+        source_module_states = source_learner_state[COMPONENT_RL_MODULE]
+        source_optim_states = source_learner_state[COMPONENT_OPTIMIZER]
     except Exception as e:
         print(f"Error al obtener el estado del LearnerGroup de origen: {e}")
+        print("Asegúrese de que el 'source_algo' esté usando la nueva pila de API.")
         return
 
-    # Mapear los estados de origen a los módulos de destino
-    states_to_transfer = {}
-    print("Mapeando estados de origen a módulos de destino...")
+    # --- PASO 2: Construir un ESTADO DE LEARNER PARCIAL para transferir ---
+    # Necesitamos transferir tanto los pesos del módulo COMO el estado del optimizador.
+
+    partial_learner_state_to_transfer = {
+        COMPONENT_RL_MODULE: {},
+        COMPONENT_OPTIMIZER: {},
+    }
+
+    print("Mapeando estados de módulo y optimizador...")
     for module_id in module_ids_to_transfer:
         idol_id = idol if idol else module_id
 
-        if idol_id in source_module_states:
-            states_to_transfer[module_id] = source_module_states[idol_id]
-            print(f"  - Mapeando '{module_id}' (destino) <-- '{idol_id}' (origen)")
-        else:
-            print(
-                f"ADVERTENCIA: Módulo '{idol_id}' no encontrado en el Learner de origen. Saltando '{module_id}'."
+        # El estado del optimizador está indexado por el nombre completo del optimizador,
+        # p.ej., "policy_0_default_optimizer".
+        # Asumimos el formato de nombre de optimizador por defecto.
+        source_optim_name = f"{idol_id}_default_optimizer"
+
+        if idol_id in source_module_states and source_optim_name in source_optim_states:
+            # Mapear los pesos del módulo
+            partial_learner_state_to_transfer[COMPONENT_RL_MODULE][module_id] = (
+                source_module_states[idol_id]
             )
 
-    if not states_to_transfer:
+            # Mapear el estado del optimizador para ese módulo
+            # La clave para el dict de estado de *destino* también debe ser
+            # el nombre completo del optimizador que el Learner de destino espera.
+            target_optim_name = f"{module_id}_default_optimizer"
+            partial_learner_state_to_transfer[COMPONENT_OPTIMIZER][
+                target_optim_name
+            ] = source_optim_states[source_optim_name]
+
+            print(
+                f"  - Mapeando '{target_optim_name}' (destino) <-- '{source_optim_name}' (origen) [Módulo+Optimizador]"
+            )
+        else:
+            print(
+                f"  - ADVERTENCIA: Módulo '{idol_id}' (o su optimizador '{source_optim_name}') no encontrado en el Learner de origen. Saltando '{module_id}'."
+            )
+
+    if not partial_learner_state_to_transfer[COMPONENT_RL_MODULE]:
         print("No hay estados para transferir. Abortando.")
         return
 
-    # Definimos una función de actualización para los Learners de destino
-    def update_learner_modules(learner, *, states_to_set):
-        # learner es la instancia del objeto Learner
-        print(f"[Learner] Aplicando {len(states_to_set)} estados de módulo...")
-        for module_id, state_to_load in states_to_set.items():
-            if module_id in learner.module:
-                try:
-                    learner.module[module_id].set_state(state_to_load)
-                    print(f"[Learner] Estado aplicado exitosamente a {module_id}")
-                except Exception as e:
-                    print(f"[Learner] Error al aplicar estado a {module_id}: {e}")
-            else:
-                print(
-                    f"[Learner] ADVERTENCIA: Módulo {module_id} no encontrado en este Learner."
-                )
+    # --- PASO 3: Definir la función de actualización para los Learners de destino ---
+    # Esta función ahora usa learner.set_state() para actualizar MÚLTIPLES componentes.
+    def update_learner_state(learner, *, partial_state_to_set):
+        # 'learner' es la instancia del objeto Learner
+        print(
+            f"[Learner] Aplicando estado parcial del Learner (Módulos y Optimizadores)..."
+        )
+        try:
+            # learner.set_state() es lo suficientemente inteligente como para
+            # fusionar este estado parcial con su estado existente.
+            learner.set_state(partial_state_to_set)
+            print(f"[Learner] Estado parcial aplicado exitosamente.")
+        except Exception as e:
+            print(f"[Learner] Error al aplicar estado parcial: {e}")
 
-    # Ejecutar la actualización en *todos* los workers del LearnerGroup de destino
+    # --- PASO 4: Ejecutar la actualización en *todos* los workers del LearnerGroup de destino ---
 
-    # Aplicar a todos los LEARNERS REMOTOS (si existen)
+    # 4.1. Aplicar a todos los LEARNERS REMOTOS (si existen)
     print(
         "Ejecutando 'set_state' en todos los workers remotos del LearnerGroup (si existen)..."
     )
     target_algo.learner_group.foreach_learner(
-        update_learner_modules, states_to_set=states_to_transfer
+        update_learner_state, partial_state_to_set=partial_learner_state_to_transfer
     )
 
-    # Aplicar al LEARNER LOCAL (si existe)
+    # 4.2. Aplicar al LEARNER LOCAL (si existe)
     if target_algo.learner_group._learner:
         print("Aplicando 'set_state' al worker local del LearnerGroup...")
-        update_learner_modules(
-            target_algo.learner_group._learner, states_to_set=states_to_transfer
+        update_learner_state(
+            target_algo.learner_group._learner,
+            partial_state_to_set=partial_learner_state_to_transfer,
         )
 
     print("Actualización del LearnerGroup completada.")
 
-    # Esto es lo último: Sincronizar los pesos del LearnerGroup al EnvRunnerGroup
+    # --- PASO 5: Sincronizar los pesos del LearnerGroup al EnvRunnerGroup ---
+    # Este paso sigue siendo crucial para que tu 'algo.get_module()'
+    # (que lee desde el EnvRunner) vea los pesos actualizados ANTES de 'algo.train()'.
     print("Sincronizando pesos del LearnerGroup actualizado al EnvRunnerGroup...")
     try:
-        updated_weights = target_algo.learner_group.get_weights()
-
-        # Aplicarlos a todos los EnvRunners (incluido el local)
-        # 'local_worker=True' aquí SÍ es correcto para EnvRunnerGroup
-        target_algo.env_runner_group.set_weights(updated_weights, local_worker=True)
+        # 'sync_weights' extrae los pesos directamente desde el LearnerGroup.
+        target_algo.env_runner_group.sync_weights(
+            from_worker_or_learner_group=target_algo.learner_group,
+            inference_only=True,  # Los EnvRunners solo necesitan pesos de inferencia
+        )
 
         print("Sincronización con EnvRunnerGroup completada.")
     except Exception as e:
