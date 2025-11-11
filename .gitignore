@@ -1,5 +1,6 @@
 # cosas de experimentos
-experimentos/*/checkpoints/
+experimentos/*/
+!experimentos/*/exp.yaml
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
