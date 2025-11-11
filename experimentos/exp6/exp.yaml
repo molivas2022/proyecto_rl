@@ -13,7 +13,7 @@ environment:
 
 agent:
   algorithm: "PPO"
-  policy_type: "MlpPolicy"
+  policy_type: "MetaDriveCNNPolicy"
 
 hyperparameters:
   learning_rate: 0.00001
@@ -24,5 +24,7 @@ hyperparameters:
   n_epochs: 1500
   gamma: 0.995
   clip_param: 0.2
+  vf_clip_param: 10.0
+  grad_clip: 0.5
   lambda: 0.95
   entropy_coeff: 0

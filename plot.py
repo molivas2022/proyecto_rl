@@ -63,7 +63,7 @@ def plot_route_completion_curve(csv_path, out_path):
 
 if __name__ == "__main__":
     current_dir = Path.cwd()
-    exp_dir = current_dir / "experimentos" / "exp5"
+    exp_dir = current_dir / "experimentos" / "exp6"
     rewards_csv_path = exp_dir / "rewards_log.csv"
     policy_logs = exp_dir / "policy_log.csv"
     route_completion_csv_path = exp_dir / "checkpoint_metrics.csv"

@@ -40,21 +40,6 @@ def generate_gif(envclass, envconfig, modelpath, savepath, title, seed=42):
     # obtener el algoritmo completo desde el checkpoint
     try:
         algo = Algorithm.from_checkpoint(modelpath)
-        # rl_module = MultiRLModule.from_checkpoint(
-        #    os.path.join(
-        #        modelpath,  # (or directly a string path to the checkpoint dir)
-        #        COMPONENT_LEARNER_GROUP,
-        #        COMPONENT_LEARNER,
-        #        COMPONENT_RL_MODULE,
-        #    )
-        # )
-
-        # rl_module_path = os.path.join(
-        #     modelpath, COMPONENT_LEARNER_GROUP, COMPONENT_LEARNER, COMPONENT_RL_MODULE
-        # )
-        # print(rl_module_path)
-        # rl_module = MultiRLModule.from_checkpoint(rl_module_path)
-
     except Exception as e:
         print(f"====ERROR: no se pudo cargar el checkpoint.====\n {e}")
         raise
@@ -62,7 +47,7 @@ def generate_gif(envclass, envconfig, modelpath, savepath, title, seed=42):
     module_dict = {}
     for i in range(envconfig["num_agents"]):
         module_dict[f"agent{i}"] = algo.get_module(f"policy_{i}")
-        # print(algo.get_module(f"policy_{i}"))
+        print(algo.get_module(f"policy_{i}"))
 
     env, _ = execute_one_episode(env, module_dict, title, enable_render=True)
 
@@ -77,14 +62,14 @@ def generate_gif(envclass, envconfig, modelpath, savepath, title, seed=42):
 
 
 if __name__ == "__main__":
-    exp_dir = Path.cwd() / "experimentos" / "exp5"
-    modelpath = exp_dir / "checkpoints" / "240"
+    exp_dir = Path.cwd() / "experimentos" / "exp6"
+    modelpath = exp_dir / "checkpoints" / "140"
 
-    for i in range(5):
+    for i in range(3):
         generate_gif(
             envclass=MultiAgentIntersectionEnv,
             envconfig=dict(
-                num_agents=5,
+                num_agents=1,
                 allow_respawn=False,
                 random_spawn_lane_index=True,
                 start_seed=57,

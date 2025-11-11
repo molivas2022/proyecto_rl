@@ -27,6 +27,7 @@ from tqdm import tqdm
 import numpy as np
 
 
+# Creo que hay una API para hacer esto en rllib, me da paja revisar ya
 def transfer_module_weights(source_algo, target_algo, module_ids_to_transfer, idol):
     """
     Transfiere los módulos Y LOS ESTADOS DEL OPTIMIZADOR desde un source algorithm,
@@ -166,6 +167,8 @@ def actions_from_distributions(module_dict, obs, env):
 def execute_one_episode(env, module_dict, title=None, enable_render=False):
 
     obs, info = env.reset()
+    #print(obs["agent0"].shape)
+    #print(env.vehicle_config)
 
     terminateds = {"__all__": False}
     truncateds = {"__all__": False}
@@ -192,3 +195,4 @@ def execute_one_episode(env, module_dict, title=None, enable_render=False):
             )
 
     return env, infos_list
+
