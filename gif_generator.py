@@ -63,13 +63,13 @@ def generate_gif(envclass, envconfig, modelpath, savepath, title, seed=42):
 
 if __name__ == "__main__":
     exp_dir = Path.cwd() / "experimentos" / "exp6"
-    modelpath = exp_dir / "checkpoints" / "140"
+    modelpath = exp_dir / "checkpoints" / "240"
 
     for i in range(3):
         generate_gif(
             envclass=MultiAgentIntersectionEnv,
             envconfig=dict(
-                num_agents=1,
+                num_agents=5,
                 allow_respawn=False,
                 random_spawn_lane_index=True,
                 start_seed=57,

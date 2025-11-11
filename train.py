@@ -207,6 +207,7 @@ class IPPOExperiment:
             .resources(num_gpus=1)
             .env_runners(
                 num_env_runners=self.exp_config["environment"]["num_env_runners"],
+                normalize_rewards=True,
                 # Prefiero no cambiar esto (por ahora) la verdad
                 # rollout_fragment_length=self.exp_config["hyperparameters"]["rollout_fragment_length"],
             )
