@@ -19,18 +19,23 @@ from gif_generator import generate_gif
 from ray.rllib.callbacks.callbacks import RLlibCallback
 import pandas as pd
 from utils import transfer_module_weights
+from custom_networks import MetaDriveCNN
+from ray.rllib.core.rl_module.rl_module import RLModuleSpec
+from ray.rllib.core.rl_module.multi_rl_module import MultiRLModuleSpec
+from ray.rllib.algorithms.bc.torch.default_bc_torch_rl_module import DefaultBCTorchRLModule
 
 
 warnings.filterwarnings("ignore")
 current_dir = Path.cwd()
 
-EXP_DIR = current_dir / "experimentos" / "exp5"
+EXP_DIR = current_dir / "experimentos" / "exp6"
 
 # Guardamos logs en memoria persistente cada 10 calls de logger (en este caso, cada 10 iteraciones de training)
 LOG_SAVE_FREQUENCY = 1
 
 
 # TODO: Agregar on_algo_end (creo que se debe llamar algo asi), por ahora simplemente puse frequencia de guardado 1.
+# TODO: Dejar de medir métricas en base a training_iteration y hacerlo en base a time_steps
 class PPOMetricsLogger(RLlibCallback):
     def __init__(self):
         super().__init__()
@@ -91,13 +96,12 @@ class PPOMetricsLogger(RLlibCallback):
 
 
 class IPPOExperiment:
-    def __init__(self, exp_config, env_class, exp_dir, start_from_checkpoint=False):
+    def __init__(self, exp_config, env_class, exp_dir, start_from_checkpoint=False, use_cnn=False):
         self.exp_dir = exp_dir
         self.exp_config = exp_config.copy()
         self.env_config = {}
 
         # TODO: Dejar de hardcodear todos los fields del env_config
-        self.env_config["base_env_class"] = env_class
         self.env_config["base_env_class"] = env_class
         self.env_config["num_agents"] = self.exp_config["environment"]["num_agents"]
         self.env_config["allow_respawn"] = self.exp_config["environment"][
@@ -110,7 +114,11 @@ class IPPOExperiment:
         self.start_from_checkpoint = start_from_checkpoint
 
         self.policies = {}
+        
+        self.policy_specs = {}
+        rl_module_specs_dict = {}
 
+        
         def policy_mapping_fn(agent_id, episode, **kwargs):
             match = re.search(r"(\d+)", str(agent_id))
             if match:
@@ -123,6 +131,18 @@ class IPPOExperiment:
         temp_env = MetadriveEnvWrapper(self.env_config)
         temp_env.reset()
 
+        #self.spec = RLModuleSpec(
+        #        observation_space=temp_env.observation_spaces["agent0"],
+        #        action_space=temp_env.action_spaces["agent0"],
+        #        module_class=MetaDriveCNN,
+        #        model_config={"hidden_dim": 256},
+        #    )
+        #test_module = self.spec.build()
+        #print("########### HELLO ###############")
+        #print(sum(p.numel() for p in test_module.parameters() if p.requires_grad))
+        #print("########### BYE #################")
+
+
         for agent_id, obs_space in temp_env.observation_spaces.items():
             act_space = temp_env.action_spaces[agent_id]
             policy_id = self.policy_mapping_fn(agent_id, None)
@@ -132,24 +152,52 @@ class IPPOExperiment:
                     observation_space=obs_space, action_space=act_space, config={}
                 )
 
+            # TODO: Generalizar esto, quizás pasar un enum al constructor con la red a utilizar.
+            if policy_id not in rl_module_specs_dict:
+                if use_cnn:
+                    rl_module_specs_dict[policy_id] = RLModuleSpec(
+                        module_class=MetaDriveCNN,
+                        observation_space=obs_space,  # 
+                        action_space=act_space,    # 
+                        model_config={"hidden_dim": 256},
+                    )
+                else:
+                    rl_module_specs_dict[policy_id] = RLModuleSpec(
+                        module_class=DefaultBCTorchRLModule,
+                        observation_space=obs_space,
+                        action_space=act_space,
+                    )
+        self.spec = MultiRLModuleSpec(rl_module_specs=rl_module_specs_dict)
+
         if "temp_env" in locals() and hasattr(temp_env, "env"):
             temp_env.env.close()
         del temp_env
 
+
+
+
     def train(self):
         ray.init(ignore_reinit_error=True)
+        # TODO: Refactorizar esto para que no esté hardcodeado
         config = (
             PPOConfig()
             .training(
-                # lr=self.exp_config["hyperparameters"]["learning_rate"],
                 gamma=self.exp_config["hyperparameters"]["gamma"],
                 clip_param=self.exp_config["hyperparameters"]["clip_param"],
+                # Se samplean train_batch_size env steps por training iteration. El default es 4000
+                # Tener esto en cuenta. En la config los estoy dejando las reducciones con target
+                # en epochs 200, 1000.
                 lr=[
                     [0, self.exp_config["hyperparameters"]["learning_rate"]],
-                    [15000, self.exp_config["hyperparameters"]["learning_rate"]],
+                    [8e5, self.exp_config["hyperparameters"]["learning_rate"]],
+                    [4e6, self.exp_config["hyperparameters"]["learning_rate"]],
                 ],
+                lambda_=self.exp_config["hyperparameters"]["lambda"],
                 entropy_coeff=self.exp_config["hyperparameters"]["entropy_coeff"],
+                train_batch_size_per_learner=self.exp_config["hyperparameters"]["train_batch_size"],
                 minibatch_size=self.exp_config["hyperparameters"]["minibatch_size"],
+                vf_clip_param=self.exp_config["hyperparameters"]["vf_clip_param"],
+                grad_clip=self.exp_config["hyperparameters"]["grad_clip"]
             )
             .multi_agent(
                 policies=self.policies, policy_mapping_fn=self.policy_mapping_fn
@@ -158,9 +206,14 @@ class IPPOExperiment:
             .framework("torch")
             .resources(num_gpus=1)
             .env_runners(
-                num_env_runners=self.exp_config["environment"]["num_env_runners"]
+                num_env_runners=self.exp_config["environment"]["num_env_runners"],
+                # Prefiero no cambiar esto (por ahora) la verdad
+                # rollout_fragment_length=self.exp_config["hyperparameters"]["rollout_fragment_length"],
             )
             .callbacks(PPOMetricsLogger)
+            .rl_module(
+                rl_module_spec=self.spec,
+            )
         )
 
         algo = config.build()
@@ -181,13 +234,12 @@ class IPPOExperiment:
             transfer_module_weights(source_algo, algo, self.policies, idol)
             source_algo.stop()
 
-            module_now = algo.get_module("policy_0")
+            # module_now = algo.get_module("policy_0")
             # print("### After transfer target module state ###")
             # pprint(module_now.get_state())
 
         # "Checkpoint" inicial para debugging, más que nada
         checkpoint_dir = algo.save_to_path(self.exp_dir / "checkpoints" / "0")
-        rewards = []
 
         print("Commencing training")
         for i in range(self.exp_config["hyperparameters"]["n_epochs"]):
@@ -219,7 +271,5 @@ if torch.cuda.is_available():
 with open(EXP_DIR / "exp.yaml") as f:
     exp_config = yaml.load(f, Loader=yaml.SafeLoader)
 
-exp = IPPOExperiment(exp_config, MultiAgentIntersectionEnv, EXP_DIR, True)
+exp = IPPOExperiment(exp_config, MultiAgentIntersectionEnv, EXP_DIR, False, True)
 _ = exp.train()
-
-# plot_reward_curve(rewards_csv_dir, exp_dir / "resultados.png")

@@ -124,7 +124,7 @@ def calculate_metrics(epochs, envclass, envconfig, modelpath, seed=42):
 if __name__ == "__main__":
     exp_dir = Path.cwd() / "experimentos" / "exp5"
     checkpoint_freq = 20
-    last_checkpoint = 500
+    last_checkpoint = 1200
     num_agents = 5
 
     metrics_dict = {}
