@@ -1,0 +1,19 @@
+name: proyecto-rl
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12.6
+  - pip
+  - pip:
+    # esto para pytorch 12.6 (cambiar dependiendo de pc)
+    - --extra-index-url https://download.pytorch.org/whl/cu126
+    - torch==2.9.0
+    - torchvision==0.24.0
+    - torchaudio==2.9.0
+    - numpy==2.2.6
+    - ray[rllib]==2.51.1
+    - seaborn==0.13.2
+    - gymnasium
+    - pydantic
+    - git+https://github.com/metadriverse/metadrive.git@85e5dadc6c7436d324348f6e3d8f8e680c06b4db
