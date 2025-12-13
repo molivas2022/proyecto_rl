@@ -139,7 +139,7 @@ class IPPOExperiment:
         temp_env.reset()
 
         # Número de lasers
-        # print(temp_env.env.config["vehicle_config"]["lidar"])
+        print(temp_env.env.config["vehicle_config"]["lidar"])
 
         # self.spec = RLModuleSpec(
         #        observation_space=temp_env.observation_spaces["agent0"],
@@ -284,5 +284,5 @@ if torch.cuda.is_available():
 with open(EXP_DIR / "exp.yaml") as f:
     exp_config = yaml.load(f, Loader=yaml.SafeLoader)
 
-exp = IPPOExperiment(exp_config, MultiAgentIntersectionEnv, EXP_DIR, False, False)
+exp = IPPOExperiment(exp_config, MultiAgentIntersectionEnv, EXP_DIR, False, True)
 _ = exp.train()
