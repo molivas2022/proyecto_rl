@@ -20,18 +20,20 @@ from ray.rllib.callbacks.callbacks import RLlibCallback
 import pandas as pd
 from utils import transfer_module_weights
 from custom_networks import MetaDriveCNN
+from custom_networks import MetaDriveStackedCNN
 from ray.rllib.core.rl_module.rl_module import RLModuleSpec
 from ray.rllib.core.rl_module.multi_rl_module import MultiRLModuleSpec
 from ray.rllib.algorithms.bc.torch.default_bc_torch_rl_module import DefaultBCTorchRLModule
+from observation import StackedLidarObservation
 
 
 warnings.filterwarnings("ignore")
 current_dir = Path.cwd()
 
-EXP_DIR = current_dir / "experimentos" / "exp6"
+EXP_DIR = current_dir / "experimentos" / "exp7"
 
 # Guardamos logs en memoria persistente cada 10 calls de logger (en este caso, cada 10 iteraciones de training)
-LOG_SAVE_FREQUENCY = 1
+LOG_SAVE_FREQUENCY = 10
 
 
 # TODO: Agregar on_algo_end (creo que se debe llamar algo asi), por ahora simplemente puse frequencia de guardado 1.
@@ -111,6 +113,10 @@ class IPPOExperiment:
         self.env_config["traffic_density"] = self.exp_config["environment"][
             "traffic_density"
         ]
+
+        # Por ahora hardcodeado
+        self.env_config["agent_observation"] = StackedLidarObservation
+
         self.start_from_checkpoint = start_from_checkpoint
 
         self.policies = {}
@@ -130,6 +136,9 @@ class IPPOExperiment:
 
         temp_env = MetadriveEnvWrapper(self.env_config)
         temp_env.reset()
+
+        # Número de lasers
+        #print(temp_env.env.config["vehicle_config"]["lidar"])
 
         #self.spec = RLModuleSpec(
         #        observation_space=temp_env.observation_spaces["agent0"],
@@ -156,7 +165,7 @@ class IPPOExperiment:
             if policy_id not in rl_module_specs_dict:
                 if use_cnn:
                     rl_module_specs_dict[policy_id] = RLModuleSpec(
-                        module_class=MetaDriveCNN,
+                        module_class=MetaDriveStackedCNN,
                         observation_space=obs_space,  # 
                         action_space=act_space,    # 
                         model_config={"hidden_dim": 256},

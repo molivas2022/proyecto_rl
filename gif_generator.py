@@ -22,6 +22,7 @@ import torch
 from tqdm import tqdm
 import numpy as np
 from utils import actions_from_distributions, execute_one_episode
+from observation import StackedLidarObservation
 
 
 def generate_gif(envclass, envconfig, modelpath, savepath, title, seed=42):
@@ -62,18 +63,19 @@ def generate_gif(envclass, envconfig, modelpath, savepath, title, seed=42):
 
 
 if __name__ == "__main__":
-    exp_dir = Path.cwd() / "experimentos" / "exp6"
-    modelpath = exp_dir / "checkpoints" / "140"
+    exp_dir = Path.cwd() / "experimentos" / "exp7"
+    modelpath = exp_dir / "checkpoints" / "640"
 
     for i in range(3):
         generate_gif(
             envclass=MultiAgentIntersectionEnv,
             envconfig=dict(
-                num_agents=1,
+                num_agents=5,
                 allow_respawn=False,
                 random_spawn_lane_index=True,
                 start_seed=57,
                 traffic_density=0,
+                agent_observation=StackedLidarObservation
             ),
             seed=0,
             modelpath=modelpath,
