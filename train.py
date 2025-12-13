@@ -30,7 +30,7 @@ from observation import StackedLidarObservation
 warnings.filterwarnings("ignore")
 current_dir = Path.cwd()
 
-EXP_DIR = current_dir / "experimentos" / "exp7"
+EXP_DIR = current_dir / "experimentos" / "exp8"
 
 # Guardamos logs en memoria persistente cada 10 calls de logger (en este caso, cada 10 iteraciones de training)
 LOG_SAVE_FREQUENCY = 10
@@ -115,7 +115,7 @@ class IPPOExperiment:
         ]
 
         # Por ahora hardcodeado
-        self.env_config["agent_observation"] = StackedLidarObservation
+        # self.env_config["agent_observation"] = StackedLidarObservation
 
         self.start_from_checkpoint = start_from_checkpoint
 
@@ -165,7 +165,7 @@ class IPPOExperiment:
             if policy_id not in rl_module_specs_dict:
                 if use_cnn:
                     rl_module_specs_dict[policy_id] = RLModuleSpec(
-                        module_class=MetaDriveStackedCNN,
+                        module_class=MetaDriveCNN,
                         observation_space=obs_space,  # 
                         action_space=act_space,    # 
                         model_config={"hidden_dim": 256},
@@ -201,8 +201,12 @@ class IPPOExperiment:
                     [8e5, self.exp_config["hyperparameters"]["learning_rate"]],
                     [4e6, self.exp_config["hyperparameters"]["learning_rate"]],
                 ],
+                entropy_coeff=[
+                    [0, self.exp_config["hyperparameters"]["entropy_coeff"]],
+                    [8e5, self.exp_config["hyperparameters"]["entropy_coeff"] / 2],
+                    [4e6, self.exp_config["hyperparameters"]["entropy_coeff"] / 5],
+                ],
                 lambda_=self.exp_config["hyperparameters"]["lambda"],
-                entropy_coeff=self.exp_config["hyperparameters"]["entropy_coeff"],
                 train_batch_size_per_learner=self.exp_config["hyperparameters"]["train_batch_size"],
                 minibatch_size=self.exp_config["hyperparameters"]["minibatch_size"],
                 vf_clip_param=self.exp_config["hyperparameters"]["vf_clip_param"],
