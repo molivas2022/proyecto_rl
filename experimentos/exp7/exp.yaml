@@ -14,6 +14,7 @@ environment:
 agent:
   algorithm: "PPO"
   policy_type: "MetaDriveCNNPolicy"
+  policy_type: "MetaDriveStackedCNNPolicy"
 
 hyperparameters:
   learning_rate: 0.00001
