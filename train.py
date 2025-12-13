@@ -23,7 +23,7 @@ from custom_networks import MetaDriveCNN
 from custom_networks import MetaDriveStackedCNN
 from ray.rllib.core.rl_module.rl_module import RLModuleSpec
 from ray.rllib.core.rl_module.multi_rl_module import MultiRLModuleSpec
-from ray.rllib.algorithms.bc.torch.default_bc_torch_rl_module import DefaultBCTorchRLModule
+from ray.rllib.algorithms.ppo.torch.ppo_torch_rl_module import PPOTorchRLModule
 from observation import StackedLidarObservation
 
 
@@ -98,7 +98,9 @@ class PPOMetricsLogger(RLlibCallback):
 
 
 class IPPOExperiment:
-    def __init__(self, exp_config, env_class, exp_dir, start_from_checkpoint=False, use_cnn=False):
+    def __init__(
+        self, exp_config, env_class, exp_dir, start_from_checkpoint=False, use_cnn=False
+    ):
         self.exp_dir = exp_dir
         self.exp_config = exp_config.copy()
         self.env_config = {}
@@ -120,11 +122,10 @@ class IPPOExperiment:
         self.start_from_checkpoint = start_from_checkpoint
 
         self.policies = {}
-        
+
         self.policy_specs = {}
         rl_module_specs_dict = {}
 
-        
         def policy_mapping_fn(agent_id, episode, **kwargs):
             match = re.search(r"(\d+)", str(agent_id))
             if match:
@@ -138,19 +139,18 @@ class IPPOExperiment:
         temp_env.reset()
 
         # Número de lasers
-        #print(temp_env.env.config["vehicle_config"]["lidar"])
+        # print(temp_env.env.config["vehicle_config"]["lidar"])
 
-        #self.spec = RLModuleSpec(
+        # self.spec = RLModuleSpec(
         #        observation_space=temp_env.observation_spaces["agent0"],
         #        action_space=temp_env.action_spaces["agent0"],
         #        module_class=MetaDriveCNN,
         #        model_config={"hidden_dim": 256},
         #    )
-        #test_module = self.spec.build()
-        #print("########### HELLO ###############")
-        #print(sum(p.numel() for p in test_module.parameters() if p.requires_grad))
-        #print("########### BYE #################")
-
+        # test_module = self.spec.build()
+        # print("########### HELLO ###############")
+        # print(sum(p.numel() for p in test_module.parameters() if p.requires_grad))
+        # print("########### BYE #################")
 
         for agent_id, obs_space in temp_env.observation_spaces.items():
             act_space = temp_env.action_spaces[agent_id]
@@ -166,24 +166,22 @@ class IPPOExperiment:
                 if use_cnn:
                     rl_module_specs_dict[policy_id] = RLModuleSpec(
                         module_class=MetaDriveCNN,
-                        observation_space=obs_space,  # 
-                        action_space=act_space,    # 
+                        observation_space=obs_space,  #
+                        action_space=act_space,  #
                         model_config={"hidden_dim": 256},
                     )
                 else:
                     rl_module_specs_dict[policy_id] = RLModuleSpec(
-                        module_class=DefaultBCTorchRLModule,
+                        module_class=PPOTorchRLModule,
                         observation_space=obs_space,
                         action_space=act_space,
+                        model_config={"hidden_dim": 256},
                     )
         self.spec = MultiRLModuleSpec(rl_module_specs=rl_module_specs_dict)
 
         if "temp_env" in locals() and hasattr(temp_env, "env"):
             temp_env.env.close()
         del temp_env
-
-
-
 
     def train(self):
         ray.init(ignore_reinit_error=True)
@@ -207,10 +205,12 @@ class IPPOExperiment:
                     [4e6, self.exp_config["hyperparameters"]["entropy_coeff"] / 5],
                 ],
                 lambda_=self.exp_config["hyperparameters"]["lambda"],
-                train_batch_size_per_learner=self.exp_config["hyperparameters"]["train_batch_size"],
+                train_batch_size_per_learner=self.exp_config["hyperparameters"][
+                    "train_batch_size"
+                ],
                 minibatch_size=self.exp_config["hyperparameters"]["minibatch_size"],
                 vf_clip_param=self.exp_config["hyperparameters"]["vf_clip_param"],
-                grad_clip=self.exp_config["hyperparameters"]["grad_clip"]
+                grad_clip=self.exp_config["hyperparameters"]["grad_clip"],
             )
             .multi_agent(
                 policies=self.policies, policy_mapping_fn=self.policy_mapping_fn
@@ -284,5 +284,5 @@ if torch.cuda.is_available():
 with open(EXP_DIR / "exp.yaml") as f:
     exp_config = yaml.load(f, Loader=yaml.SafeLoader)
 
-exp = IPPOExperiment(exp_config, MultiAgentIntersectionEnv, EXP_DIR, False, True)
+exp = IPPOExperiment(exp_config, MultiAgentIntersectionEnv, EXP_DIR, False, False)
 _ = exp.train()
