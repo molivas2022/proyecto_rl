@@ -76,10 +76,10 @@ class MetaDriveCNN(TorchRLModule, ValueFunctionAPI, TargetNetworkAPI):
         # nn.Module.__setattr__ las registrará automáticamente.
         self._base_cnn_stack = nn.Sequential(
             nn.Conv1d(in_channels=1, out_channels=64, kernel_size=3, stride=1),
-            nn.Tanh(),
+            nn.ReLU(),
             nn.MaxPool1d(2, 2),
             nn.Conv1d(in_channels=64, out_channels=128, kernel_size=3, stride=1),
-            nn.Tanh(),
+            nn.ReLU(),
             nn.MaxPool1d(2, 2),
             nn.AdaptiveAvgPool1d(1),
             nn.Flatten(),

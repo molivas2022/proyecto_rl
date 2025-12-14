@@ -4,13 +4,13 @@ import torch
 from pathlib import Path
 
 from metadrive import (
-    MultiAgentMetaDrive,
-    MultiAgentTollgateEnv,
-    MultiAgentBottleneckEnv,
-    MultiAgentIntersectionEnv,
-    MultiAgentRoundaboutEnv,
-    MultiAgentParkingLotEnv
-)
+        MultiAgentMetaDrive,
+        MultiAgentTollgateEnv,
+        MultiAgentBottleneckEnv,
+        MultiAgentIntersectionEnv,
+        MultiAgentRoundaboutEnv,
+        MultiAgentParkingLotEnv
+        )
 from ray.rllib.algorithms.ppo.torch.ppo_torch_rl_module import PPOTorchRLModule
 from metadrive.obs.state_obs import LidarStateObservation
 
@@ -52,7 +52,7 @@ def run_experiments():
         raise FileNotFoundError(f"No se encontró experiment.yml en: {CONFIG_PATH}")
 
     print(f"Cargando configuración desde: {CONFIG_PATH}")
-    
+
     # Cargar YAML
     with open(CONFIG_PATH) as f:
         experiments_list = yaml.load(f, Loader=yaml.SafeLoader)
@@ -107,7 +107,6 @@ def run_experiments():
             print(f"Advertencia: Observación '{obs_str}' no encontrada en mapa, se mantiene como string.")
 
 
-
         # Lógica para determinar use_cnn dinámicamente basado en el string original
         use_cnn_flag = "CNN" in policy_str
 
@@ -128,12 +127,12 @@ def run_experiments():
             if algo_str == "IPPO":
 
                 exp = IPPOTrainer(
-                    exp_config=exp_config,
-                    env_class=EnvClass,
-                    exp_dir=CURRENT_EXP_DIR,
-                    start_from_checkpoint=False,
-                    use_cnn=use_cnn_flag
-                )
+                        exp_config=exp_config,
+                        env_class=EnvClass,
+                        exp_dir=CURRENT_EXP_DIR,
+                        start_from_checkpoint=False,
+                        use_cnn=use_cnn_flag
+                        )
             elif algo_str == "MAPPO":
                 exp = None
                 pass
@@ -148,3 +147,4 @@ def run_experiments():
 
 if __name__ == "__main__":
     run_experiments()
+
