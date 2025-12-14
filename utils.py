@@ -147,12 +147,19 @@ def transfer_module_weights(source_algo, target_algo, module_ids_to_transfer, id
     print("--- Transferencia de pesos completada ---")
 
 
-def actions_from_distributions(module_dict, obs, env):
+def actions_from_distributions(module_dict, obs, env, centralized=False):
     action_dict = {}
 
     for agent in obs:
         module = module_dict[agent]
         input_dict = {Columns.OBS: torch.from_numpy(obs[agent]).unsqueeze(0)}
+
+        # FIX MALO MALO
+        if centralized:
+            current_val = input_dict[Columns.OBS]
+            input_dict[Columns.OBS] = {"obs": current_val}
+        # FIX END
+
         out_dict = module.forward_inference(input_dict)
         dist_params_np = out_dict["action_dist_inputs"].detach().cpu().numpy()[0]
         raw_means = dist_params_np[[0, 1]]
@@ -164,7 +171,7 @@ def actions_from_distributions(module_dict, obs, env):
 
 
 # Esto hay que cambiarlo de archivo despues jejej
-def execute_one_episode(env, module_dict, title=None, enable_render=False):
+def execute_one_episode(env, module_dict, title=None, enable_render=False, centralized=False):
 
     obs, info = env.reset()
     #print(obs["agent0"].shape)
@@ -176,7 +183,7 @@ def execute_one_episode(env, module_dict, title=None, enable_render=False):
     infos_list = []
     while not (terminateds["__all__"] or truncateds["__all__"]):
         # obtener acciones dic {agent : action}
-        actions = actions_from_distributions(module_dict, obs, env)
+        actions = actions_from_distributions(module_dict, obs, env, centralized=centralized)
 
         # ejecutar step
         obs, rewards, terminateds, truncateds, infos = env.step(actions)

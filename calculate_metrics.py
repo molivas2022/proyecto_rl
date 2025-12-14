@@ -1,29 +1,14 @@
-import gymnasium as gym
 import numpy as np
 from pathlib import Path
 from ray.rllib.algorithms.algorithm import Algorithm
 from metadrive import MultiAgentIntersectionEnv
 from pathlib import Path
-from ray.rllib.core import (
-    COMPONENT_ENV_RUNNER,
-    COMPONENT_ENV_TO_MODULE_CONNECTOR,
-    COMPONENT_MODULE_TO_ENV_CONNECTOR,
-    COMPONENT_LEARNER_GROUP,
-    COMPONENT_LEARNER,
-    COMPONENT_RL_MODULE,
-    DEFAULT_MODULE_ID,
-)
-from ray.rllib.core.rl_module.rl_module import RLModule
-from ray.rllib.core.rl_module.multi_rl_module import MultiRLModule
-from ray.rllib.core.columns import Columns
-import os
-from pprint import pprint
-import torch
 from tqdm import tqdm
 import numpy as np
-from utils import actions_from_distributions, execute_one_episode
+from utils import execute_one_episode
 import pandas as pd
 
+CENTRALIZED = False
 
 def compute_episode_metrics(infos):
     agent_data = {}
@@ -73,7 +58,7 @@ def compute_episode_metrics(infos):
     return global_metrics
 
 
-def calculate_metrics(epochs, envclass, envconfig, modelpath, seed=42):
+def calculate_metrics(epochs, envclass, envconfig, modelpath, seed=42, centralized=False):
 
     env = envclass(envconfig)
 
@@ -99,7 +84,7 @@ def calculate_metrics(epochs, envclass, envconfig, modelpath, seed=42):
     }
 
     for epoch in tqdm(range(epochs)):
-        env, infos_list = execute_one_episode(env, module_dict)
+        env, infos_list = execute_one_episode(env, module_dict, centralized=centralized)
 
         # añadir metricas
         metrics = compute_episode_metrics(infos_list)
@@ -139,6 +124,7 @@ if __name__ == "__main__":
                 num_agents=num_agents, allow_respawn=False, traffic_density=0.1
             ),
             modelpath=modelpath,
+            centralized=CENTRALIZED
         )
         avg_route_completion = metrics["avg_route_completion"]
         route_completion_list.append(avg_route_completion)
@@ -150,13 +136,3 @@ if __name__ == "__main__":
         "Average route completion": route_completion_list,
     }
     pd.DataFrame(data).to_csv(exp_dir / "checkpoint_metrics.csv", index=False)
-
-    # print("####### Metrics ####### ")
-    # metrics = calculate_metrics(epochs = 20,
-    #                                envclass=MultiAgentIntersectionEnv,
-    #                                envconfig=dict(
-    #                                num_agents=3,
-    #                                allow_respawn=False),
-    #                                modelpath = modelpath
-    #
-    # pprint(metrics)

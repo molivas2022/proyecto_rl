@@ -4,28 +4,13 @@ from pathlib import Path
 from ray.rllib.algorithms.algorithm import Algorithm
 from metadrive import MultiAgentIntersectionEnv
 from pathlib import Path
-from ray.rllib.core import (
-    COMPONENT_ENV_RUNNER,
-    COMPONENT_ENV_TO_MODULE_CONNECTOR,
-    COMPONENT_MODULE_TO_ENV_CONNECTOR,
-    COMPONENT_LEARNER_GROUP,
-    COMPONENT_LEARNER,
-    COMPONENT_RL_MODULE,
-    DEFAULT_MODULE_ID,
-)
-from ray.rllib.core.rl_module.rl_module import RLModule
-from ray.rllib.core.rl_module.multi_rl_module import MultiRLModule
-from ray.rllib.core.columns import Columns
-import os
-from pprint import pprint
-import torch
-from tqdm import tqdm
 import numpy as np
-from utils import actions_from_distributions, execute_one_episode
+from utils import execute_one_episode
 from observation import StackedLidarObservation
 
+CENTRALIZED = False
 
-def generate_gif(envclass, envconfig, modelpath, savepath, title, seed=42):
+def generate_gif(envclass, envconfig, modelpath, savepath, title, seed=42, centralized=False):
     """
     genera gif de un episodio utilizando un algoritmo
     Args:
@@ -50,7 +35,7 @@ def generate_gif(envclass, envconfig, modelpath, savepath, title, seed=42):
         module_dict[f"agent{i}"] = algo.get_module(f"policy_{i}")
         print(algo.get_module(f"policy_{i}"))
 
-    env, _ = execute_one_episode(env, module_dict, title, enable_render=True)
+    env, _ = execute_one_episode(env, module_dict, title, enable_render=True, centralized=centralized)
 
     env.top_down_renderer.generate_gif(savepath)
 
@@ -75,10 +60,11 @@ if __name__ == "__main__":
                 random_spawn_lane_index=True,
                 start_seed=57,
                 traffic_density=0,
-                agent_observation=StackedLidarObservation
+                # agent_observation=StackedLidarObservation
             ),
             seed=0,
             modelpath=modelpath,
             savepath=str(exp_dir / f"example_{i}.gif"),
             title="IPPO",
+            centralized=CENTRALIZED
         )
