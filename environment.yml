@@ -14,6 +14,8 @@ dependencies:
     - numpy==2.2.6
     - ray[rllib]==2.51.1
     - seaborn==0.13.2
-    - gymnasium
+    - gymnasium==1.1.1
+    - PyYAML==6.0.3
     - pydantic
     - git+https://github.com/metadriverse/metadrive.git@85e5dadc6c7436d324348f6e3d8f8e680c06b4db
+    - GPUtil
