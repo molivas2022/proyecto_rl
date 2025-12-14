@@ -116,6 +116,10 @@ class IPPOExperiment:
             "traffic_density"
         ]
 
+        self.env_config["start_seed"] = self.exp_config["environment"]["train_start_seed"]
+        self.env_config["num_scenarios"] = self.exp_config["environment"]["train_num_scenarios"]
+
+
         # Por ahora hardcodeado
         # self.env_config["agent_observation"] = StackedLidarObservation
 
@@ -185,6 +189,12 @@ class IPPOExperiment:
 
     def train(self):
         ray.init(ignore_reinit_error=True)
+
+        eval_env_config = self.env_config.copy()
+        eval_env_config["start_seed"] = self.exp_config["environment"]["test_start_seed"]
+        eval_env_config["num_scenarios"] = self.exp_config["environment"]["test_num_scenarios"]
+
+
         # TODO: Refactorizar esto para que no esté hardcodeado
         config = (
             PPOConfig()
@@ -226,6 +236,14 @@ class IPPOExperiment:
             .callbacks(PPOMetricsLogger)
             .rl_module(
                 rl_module_spec=self.spec,
+            )
+            .evaluation(
+                evaluation_interval=self.exp_config["experiment"].get("eval_interval", 0),
+                evaluation_num_workers=1,
+                evaluation_config={
+                    "env": MetadriveEnvWrapper,
+                    "env_config": eval_env_config,
+                },
             )
         )
 

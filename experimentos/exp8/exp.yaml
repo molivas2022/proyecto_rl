@@ -3,6 +3,7 @@ experiment_name: "ippo_test"
 experiment:
   seed: 42
   checkpoint_freq: 20
+  eval_interval: 50         
 
 environment:
   horizon: 1000
@@ -10,6 +11,13 @@ environment:
   num_env_runners: 2
   allow_respawn: False
   traffic_density: 0
+  map_pieces: 5
+
+  
+  train_start_seed: 1000
+  train_num_scenarios: 1000
+  test_start_seed: 0
+  test_num_scenarios: 200
 
 agent:
   algorithm: "PPO"
