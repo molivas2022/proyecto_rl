@@ -1,16 +1,14 @@
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
-from ray.rllib.env.wrappers.multi_agent_env_compatibility import MultiAgentEnvCompatibility
-from metadrive import MetaDriveEnv
 
 
 class MetadriveEnvWrapper(MultiAgentEnv):
     """
         Importante acerca de ambiente:
-        debe tener respawn desactivado, si terminated o truncated == True para todos
-        termina el episodio.
+        debe tener respawn desactivado, si terminated o truncated == True para
+        todos termina el episodio.
     """
 
-    def __init__(self, config = None):
+    def __init__(self, config=None):
         """
         - env: enviroment de metadrive
         """
@@ -23,12 +21,11 @@ class MetadriveEnvWrapper(MultiAgentEnv):
         BaseEnvClass = config_copy.pop("base_env_class", None)
         self.env = BaseEnvClass(config_copy)
 
-
         self.possible_agents = list(self.env.observation_space.keys())
 
         self.observation_spaces = self.env.observation_space
 
-        self.action_spaces= self.env.action_space
+        self.action_spaces = self.env.action_space
 
         self.agents = []
 
@@ -41,11 +38,10 @@ class MetadriveEnvWrapper(MultiAgentEnv):
             obs_dict, info_dict = self.env.reset()
         else:
             obs_dict, info_dict = self.env.reset()
-        
+
         self.agents = list(obs_dict.keys())
 
         return obs_dict, info_dict
-
 
     def step(self, action_dict):
 
@@ -57,5 +53,3 @@ class MetadriveEnvWrapper(MultiAgentEnv):
             self.agents = list(obs_dict.keys())
 
         return obs_dict, rewards_dict, terminateds_dict, truncateds_dict, infos_dict
-
-

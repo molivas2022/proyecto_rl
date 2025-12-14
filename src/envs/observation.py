@@ -3,17 +3,19 @@ import gymnasium as gym
 from collections import deque
 from metadrive.obs.state_obs import LidarStateObservation
 
+
 class StackedLidarObservation(LidarStateObservation):
     """
-    Extiende LidarStateObservation para que retorne un stack de las últimas k obervaciones.
+    Extiende LidarStateObservation para que retorne un stack de las últimas k observaciones.
     """
+
     def __init__(self, config):
         # Un stack size por defecto conservativo, de 3.
         if "stack_size" not in config:
             config["stack_size"] = 3
-            
+
         super(StackedLidarObservation, self).__init__(config)
-        
+
         self.stack_size = config["stack_size"]
         # FIFO buffer FIFO buffer FIFO buffer FIFO buffer FIFO buffer
         self.observation_buffer = deque(maxlen=self.stack_size)
@@ -26,7 +28,7 @@ class StackedLidarObservation(LidarStateObservation):
         feature_dim = original_space.shape[0]
 
         return gym.spaces.Box(
-            low=0.0, 
+            low=0.0,
             high=1.0,
             shape=(self.stack_size, feature_dim),
             dtype=np.float32
@@ -44,7 +46,7 @@ class StackedLidarObservation(LidarStateObservation):
             # Actualizamos el buffer
             self.observation_buffer.append(current_frame)
 
-        # (k, Feature_Dim) 
+        # (k, Feature_Dim)
         return np.array(self.observation_buffer, dtype=np.float32)
 
     def reset(self, env, vehicle=None):

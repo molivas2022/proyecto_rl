@@ -1,28 +1,11 @@
-import gymnasium as gym
 import numpy as np
 from pathlib import Path
 from ray.rllib.algorithms.algorithm import Algorithm
 from metadrive import MultiAgentIntersectionEnv
-from pathlib import Path
-from ray.rllib.core import (
-    COMPONENT_ENV_RUNNER,
-    COMPONENT_ENV_TO_MODULE_CONNECTOR,
-    COMPONENT_MODULE_TO_ENV_CONNECTOR,
-    COMPONENT_LEARNER_GROUP,
-    COMPONENT_LEARNER,
-    COMPONENT_RL_MODULE,
-    DEFAULT_MODULE_ID,
-)
-from ray.rllib.core.rl_module.rl_module import RLModule
-from ray.rllib.core.rl_module.multi_rl_module import MultiRLModule
-from ray.rllib.core.columns import Columns
-import os
-from pprint import pprint
-import torch
 from tqdm import tqdm
-import numpy as np
-from utils import actions_from_distributions, execute_one_episode
 import pandas as pd
+
+from .execute_episode import execute_one_episode
 
 
 def compute_episode_metrics(infos):

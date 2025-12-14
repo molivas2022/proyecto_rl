@@ -1,8 +1,11 @@
-import torch
+################################
+# Por ahora esto está deprecated
+################################
+
 from metadrive import MetaDriveEnv
-from metadrive.policy.idm_policy import IDMPolicy
 from IPython.display import clear_output
 import random
+
 
 class experiment:
     env: MetaDriveEnv
@@ -19,9 +22,8 @@ class experiment:
         return self.start_seed + self.ammount
 
 
-
 # modo basico
-def split_train_test(ammount_train:int = 800, ammount_test:int = 200, num_piezas:int = 4):
+def split_train_test(ammount_train: int = 800, ammount_test: int = 200, num_piezas: int = 4):
     env_config_train = dict(
         use_render=False,
         traffic_mode="respawn",  # default: basic
@@ -47,7 +49,7 @@ def split_train_test(ammount_train:int = 800, ammount_test:int = 200, num_piezas
     return (train_set, test_set)
 
 
-def execute_simulation(data, render:bool = False, timesteps=1000):
+def execute_simulation(data, render: bool = False, timesteps=1000):
     env, start_seed, ammount = data.env, data.start_seed, data.ammount
     for i in range(start_seed, start_seed + ammount):
         env.reset(seed=i)
@@ -90,7 +92,6 @@ def execute_simulation(data, render:bool = False, timesteps=1000):
     env.close()
     clear_output()
     print("---------------------------")
-
 
 
 if __name__ == "__main__":
