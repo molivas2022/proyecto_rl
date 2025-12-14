@@ -1,7 +1,7 @@
 from ray.rllib.algorithms.algorithm import Algorithm
-from .execute_episode import execute_one_episode
-# from metadrive import MultiAgentIntersectionEnv
-# from pathlib import Path
+from src.utils.execute_episode import execute_one_episode
+from metadrive import MultiAgentRoundaboutEnv
+from pathlib import Path
 
 
 def generate_gif(envclass, envconfig, modelpath, savepath, title, seed=42):
@@ -42,23 +42,23 @@ def generate_gif(envclass, envconfig, modelpath, savepath, title, seed=42):
     env.close()
 
 
-# if __name__ == "__main__":
-#     exp_dir = Path.cwd() / "experimentos" / "exp7"
-#     modelpath = exp_dir / "checkpoints" / "640"
-# 
-#     for i in range(3):
-#         generate_gif(
-#             envclass=MultiAgentIntersectionEnv,
-#             envconfig=dict(
-#                 num_agents=5,
-#                 allow_respawn=False,
-#                 random_spawn_lane_index=True,
-#                 start_seed=57,
-#                 traffic_density=0,
-#                 agent_observation=StackedLidarObservation
-#             ),
-#             seed=0,
-#             modelpath=modelpath,
-#             savepath=str(exp_dir / f"example_{i}.gif"),
-#             title="IPPO",
-#         )
+if __name__ == "__main__":
+    exp_dir = Path.cwd() / "experiments" / "ippo_test1"
+    modelpath = exp_dir / "checkpoints" / "180"
+
+    for i in range(3):
+        generate_gif(
+            envclass=MultiAgentRoundaboutEnv,
+            envconfig=dict(
+                num_agents=5,
+                allow_respawn=False,
+                random_spawn_lane_index=True,
+                start_seed=57,
+                traffic_density=0,
+                # agent_observation=StackedLidarObservation
+            ),
+            seed=0,
+            modelpath=modelpath,
+            savepath=str(exp_dir / f"example_{i}.gif"),
+            title="IPPO",
+        )
