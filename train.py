@@ -4,13 +4,13 @@ import torch
 from pathlib import Path
 
 from metadrive import (
-        MultiAgentMetaDrive,
-        MultiAgentTollgateEnv,
-        MultiAgentBottleneckEnv,
-        MultiAgentIntersectionEnv,
-        MultiAgentRoundaboutEnv,
-        MultiAgentParkingLotEnv
-        )
+    MultiAgentMetaDrive,
+    MultiAgentTollgateEnv,
+    MultiAgentBottleneckEnv,
+    MultiAgentIntersectionEnv,
+    MultiAgentRoundaboutEnv,
+    MultiAgentParkingLotEnv,
+)
 from ray.rllib.algorithms.ppo.torch.ppo_torch_rl_module import PPOTorchRLModule
 from metadrive.obs.state_obs import LidarStateObservation
 
@@ -20,25 +20,29 @@ from src.models import MetaDriveCNN, MetaDriveStackedCNN
 from src.envs import StackedLidarObservation
 from src.trainers import IPPOTrainer
 
-ALGORITHMS = {"IPPO": IPPOTrainer,
-              }
+ALGORITHMS = {
+    "IPPO": IPPOTrainer,
+}
 
-OBSERVATIONS = {"StackedLidar": StackedLidarObservation,
-                "Lidar": LidarStateObservation,
-                }
+OBSERVATIONS = {
+    "StackedLidar": StackedLidarObservation,
+    "Lidar": LidarStateObservation,
+}
 
-MODELS = {"CNN": MetaDriveCNN,
-          "StackedCNN": MetaDriveStackedCNN,
-          "MLP": PPOTorchRLModule,
-          }
+MODELS = {
+    "CNN": MetaDriveCNN,
+    "StackedCNN": MetaDriveStackedCNN,
+    "MLP": PPOTorchRLModule,
+}
 
-ENVS = {"Roundabout": MultiAgentRoundaboutEnv,
-        "Intersection": MultiAgentIntersectionEnv,
-        "Tollgate": MultiAgentTollgateEnv,
-        "Bottleneck": MultiAgentBottleneckEnv,
-        "Parkinglot": MultiAgentParkingLotEnv,
-        "PGMA": MultiAgentMetaDrive,
-        }
+ENVS = {
+    "Roundabout": MultiAgentRoundaboutEnv,
+    "Intersection": MultiAgentIntersectionEnv,
+    "Tollgate": MultiAgentTollgateEnv,
+    "Bottleneck": MultiAgentBottleneckEnv,
+    "Parkinglot": MultiAgentParkingLotEnv,
+    "PGMA": MultiAgentMetaDrive,
+}
 
 warnings.filterwarnings("ignore")
 
@@ -61,26 +65,28 @@ def run_experiments():
         raise TypeError("El YAML debe ser una lista de experimentos.")
 
     for i, exp_config in enumerate(experiments_list):
-        exp_name = exp_config.get('experiment_name', f'exp_run_{i}')
+        exp_name = exp_config.get("experiment_name", f"exp_run_{i}")
         CURRENT_EXP_DIR = BASE_OUTPUT_DIR / exp_name
         CURRENT_EXP_DIR.mkdir(parents=True, exist_ok=True)
         print(f"\n>>> Preparando: {exp_name}")
 
-        with open(CURRENT_EXP_DIR / "config.yaml", 'w') as f_out:
+        with open(CURRENT_EXP_DIR / "config.yaml", "w") as f_out:
             yaml.dump(exp_config, f_out)
 
         # ---------------------------------------------------------
         # 1. EXTRACCIÓN Y VALIDACIÓN DE STRINGS DEL YAML
         # ---------------------------------------------------------
         try:
-            algo_str = exp_config['agent']['algorithm']
+            algo_str = exp_config["agent"]["algorithm"]
             # Asumimos que agregaste 'type' en environment en el YAML.
             # Si no, por defecto usa Intersection.
-            env_str = exp_config['environment']['type']
-            obs_str = exp_config['agent']['observation']
-            policy_str = exp_config['agent']['policy_type']
+            env_str = exp_config["environment"]["type"]
+            obs_str = exp_config["agent"]["observation"]
+            policy_str = exp_config["agent"]["policy_type"]
         except KeyError as e:
-            raise KeyError(f"Falta la clave {e} en la configuración del experimento {exp_name}")
+            raise KeyError(
+                f"Falta la clave {e} en la configuración del experimento {exp_name}"
+            )
 
         # ---------------------------------------------------------
         # 2. RESOLUCIÓN DE CLASES (Mapping String -> Class)
@@ -97,42 +103,47 @@ def run_experiments():
         # ---------------------------------------------------------
         # Aquí reemplazamos el string 'StackedLidarObservation' por la clase real
         if policy_str in MODELS:
-            exp_config['agent']['policy_type'] = MODELS[policy_str]
+            exp_config["agent"]["policy_type"] = MODELS[policy_str]
         else:
-            print(f"Advertencia: Modelo '{policy_str}' no encontrado en mapa, se mantiene como string.")
+            print(
+                f"Advertencia: Modelo '{policy_str}' no encontrado en mapa, se mantiene como string."
+            )
 
         if obs_str in OBSERVATIONS:
-            exp_config['agent']['observation'] = OBSERVATIONS[obs_str]
+            exp_config["agent"]["observation"] = OBSERVATIONS[obs_str]
         else:
-            print(f"Advertencia: Observación '{obs_str}' no encontrada en mapa, se mantiene como string.")
-
+            print(
+                f"Advertencia: Observación '{obs_str}' no encontrada en mapa, se mantiene como string."
+            )
 
         # Lógica para determinar use_cnn dinámicamente basado en el string original
         use_cnn_flag = "CNN" in policy_str
 
-        # Guardamos la config PURA (con strings) antes de mutarla con clases 
+        # Guardamos la config PURA (con strings) antes de mutarla con clases
         # (porque YAML no puede serializar clases de Python fácilmente)
         # Nota: Si quieres guardar lo que ejecutaste, haz esto ANTES del paso 3.
-        # Aquí guardamos una versión "limpia" reconstruyendo el dict si fuera necesario, 
+        # Aquí guardamos una versión "limpia" reconstruyendo el dict si fuera necesario,
         # pero para simplificar, asumimos que el dump ya se hizo o se hace con cuidado.
 
         # ---------------------------------------------------------
         # 4. EJECUCIÓN
         # ---------------------------------------------------------
         try:
-            print(f">>> Ejecutando con: Algo={algo_str}, Env={env_str}, CNN={use_cnn_flag}")
+            print(
+                f">>> Ejecutando con: Algo={algo_str}, Env={env_str}, CNN={use_cnn_flag}"
+            )
 
             # Instanciamos la clase dinámica (TrainerClass)
             # Pasamos la clase de entorno dinámica (EnvClass)
             if algo_str == "IPPO":
 
                 exp = IPPOTrainer(
-                        exp_config=exp_config,
-                        env_class=EnvClass,
-                        exp_dir=CURRENT_EXP_DIR,
-                        start_from_checkpoint=False,
-                        use_cnn=use_cnn_flag
-                        )
+                    exp_config=exp_config,
+                    env_class=EnvClass,
+                    exp_dir=CURRENT_EXP_DIR,
+                    start_from_checkpoint=False,
+                    use_cnn=use_cnn_flag,
+                )
             elif algo_str == "MAPPO":
                 exp = None
                 pass
@@ -147,4 +158,3 @@ def run_experiments():
 
 if __name__ == "__main__":
     run_experiments()
-

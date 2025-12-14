@@ -79,9 +79,7 @@ class IPPOTrainer:
                 # Definición de Policies
                 if policy_id not in self.policies:
                     self.policies[policy_id] = PolicySpec(
-                        observation_space=obs_space,
-                        action_space=act_space,
-                        config={}
+                        observation_space=obs_space, action_space=act_space, config={}
                     )
 
                 # Definición de RLModules
@@ -97,7 +95,9 @@ class IPPOTrainer:
                         model_config=model_config,
                     )
 
-            self.rl_module_spec = MultiRLModuleSpec(rl_module_specs=rl_module_specs_dict)
+            self.rl_module_spec = MultiRLModuleSpec(
+                rl_module_specs=rl_module_specs_dict
+            )
 
         finally:
             if hasattr(temp_env, "env"):
@@ -112,25 +112,19 @@ class IPPOTrainer:
             .training(
                 gamma=hyperparams["gamma"],
                 clip_param=hyperparams["clip_param"],
-
                 # Se samplean train_batch_size env steps por training iteration. El default es 4000
                 # Tener esto en cuenta. En la config los estoy dejando las reducciones con target
                 # en epochs 200, 1000.
-                lr=[
-                    [0, hyperparams["learning_rate"]],
-                    [8e5, hyperparams["learning_rate"]],
-                    [4e6, hyperparams["learning_rate"]],
-                ],
-                lambda_=hyperparams["lambda"],
+                lr=hyperparams["learning_rate"],
                 entropy_coeff=hyperparams["entropy_coeff"],
+                lambda_=hyperparams["lambda"],
                 train_batch_size_per_learner=hyperparams["train_batch_size"],
                 minibatch_size=hyperparams["minibatch_size"],
                 vf_clip_param=hyperparams["vf_clip_param"],
-                grad_clip=hyperparams["grad_clip"]
+                grad_clip=hyperparams["grad_clip"],
             )
             .multi_agent(
-                policies=self.policies,
-                policy_mapping_fn=self.policy_mapping_fn
+                policies=self.policies, policy_mapping_fn=self.policy_mapping_fn
             )
             .environment(env=MetadriveEnvWrapper, env_config=self.env_config)
             .framework("torch")
@@ -141,12 +135,16 @@ class IPPOTrainer:
                 # rollout_fragment_length=self.exp_config["hyperparameters"]["rollout_fragment_length"],
             )
             .callbacks(PPOMetricsLogger)
-            .update_from_dict({
-                "callback_args": {
-                    "exp_dir": self.exp_dir,
-                    "log_save_frequency": self.exp_config["experiment"]["log_save_freq"]
+            .update_from_dict(
+                {
+                    "callback_args": {
+                        "exp_dir": self.exp_dir,
+                        "log_save_frequency": self.exp_config["experiment"][
+                            "log_save_freq"
+                        ],
+                    }
                 }
-            })
+            )
             .rl_module(rl_module_spec=self.rl_module_spec)
         )
         return config
@@ -158,13 +156,19 @@ class IPPOTrainer:
 
         checkpoint_path = self.exp_dir / "base_checkpoint"
         if not checkpoint_path.exists():
-            raise FileNotFoundError(f"Checkpoint base no encontrado en: {checkpoint_path}")
+            raise FileNotFoundError(
+                f"Checkpoint base no encontrado en: {checkpoint_path}"
+            )
 
         print(f"Loading weights from {checkpoint_path}...")
         source_algo = Algorithm.from_checkpoint(checkpoint_path)
-        
+
         # Lógica de mismatch de políticas
-        idol = "policy_0" if len(self.policies) != len(source_algo.config.policies) else None
+        idol = (
+            "policy_0"
+            if len(self.policies) != len(source_algo.config.policies)
+            else None
+        )
 
         transfer_module_weights(source_algo, algo, self.policies, idol)
         source_algo.stop()
