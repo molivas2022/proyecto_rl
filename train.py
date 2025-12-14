@@ -291,16 +291,16 @@ class IPPOExperiment:
 
         return self.final_checkpoint_dir
 
+if __name__ == "__main__": 
+    print(f"PyTorch version: {torch.__version__}")
+    print(f"CUDA available: {torch.cuda.is_available()}")
+    if torch.cuda.is_available():
+        print(f"CUDA version: {torch.version.cuda}")
+        print(f"CUDA GPU: {torch.cuda.get_device_name()}")
 
-print(f"PyTorch version: {torch.__version__}")
-print(f"CUDA available: {torch.cuda.is_available()}")
-if torch.cuda.is_available():
-    print(f"CUDA version: {torch.version.cuda}")
-    print(f"CUDA GPU: {torch.cuda.get_device_name()}")
 
+    with open(EXP_DIR / "exp.yaml") as f:
+        exp_config = yaml.load(f, Loader=yaml.SafeLoader)
 
-with open(EXP_DIR / "exp.yaml") as f:
-    exp_config = yaml.load(f, Loader=yaml.SafeLoader)
-
-exp = IPPOExperiment(exp_config, MultiAgentIntersectionEnv, EXP_DIR, False, True)
-_ = exp.train()
+    exp = IPPOExperiment(exp_config, MultiAgentIntersectionEnv, EXP_DIR, False, True)
+    _ = exp.train()

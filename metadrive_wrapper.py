@@ -16,18 +16,21 @@ class MetadriveEnvWrapper(MultiAgentEnv):
         """
         super().__init__()
 
-        # Copiar config para evitar modificar original
         config_copy = config.copy()
 
-        # Obtener la clase custom
+        # Clase base (MultiAgentIntersectionEnv, etc.)
         BaseEnvClass = config_copy.pop("base_env_class", None)
-        
-        # Asegurarse de incluir map_pieces en la configuración del entorno
-        if 'map_pieces' in config_copy:
-            map_pieces = config_copy.pop('map_pieces')
-            config_copy['map'] = map_pieces  # Añadir el parámetro 'map' en el config del entorno
 
-        # Crear el entorno con la configuración proporcionada
+        # 🔹 LEEMOS, PERO NO POPPEAMOS
+        self.start_seed = config_copy.get("start_seed", 0)
+        self.num_scenarios = config_copy.get("num_scenarios", 1)
+        self.current_seed = self.start_seed
+
+        # map_pieces → map (por si lo usas con PG)
+        if "map_pieces" in config_copy:
+            config_copy["map"] = config_copy.pop("map_pieces")
+
+        # Ahora MetaDrive recibe start_seed y num_scenarios en su config
         self.env = BaseEnvClass(config_copy)
 
         self.possible_agents = list(self.env.observation_space.keys())
@@ -36,26 +39,28 @@ class MetadriveEnvWrapper(MultiAgentEnv):
         self.agents = []
 
     def reset(self, *, seed=None, options=None):
-        # Manejo del seed
+        # RLlib rara vez pasa seed, así que normalmente usamos nuestro contador
         if seed is not None:
-            try:
-                obs_dict, info_dict = self.env.reset(seed=seed)
-            except TypeError:
-                obs_dict, info_dict = self.env.reset()
+            next_seed = seed
         else:
-            obs_dict, info_dict = self.env.reset()
+            next_seed = self.current_seed
+            self.current_seed += 1
+            if self.current_seed >= self.start_seed + self.num_scenarios:
+                self.current_seed = self.start_seed
 
-        self.agents = list(obs_dict.keys())
+        # DEBUG (si quieres)
+        print(f"[Wrapper] reset with seed={next_seed}, range=[{self.start_seed}, {self.start_seed + self.num_scenarios})")
 
-        return obs_dict, info_dict
+        obs, info = self.env.reset(seed=next_seed)
+        self.agents = list(obs.keys())
+        return obs, info
 
     def step(self, action_dict):
-        obs_dict, rewards_dict, terminateds_dict, truncateds_dict, infos_dict = self.env.step(action_dict)
+        obs, rew, terminated, truncated, info = self.env.step(action_dict)
 
-        # Actualizar lista de agentes si se termina o trunca el episodio
-        if terminateds_dict["__all__"] or truncateds_dict["__all__"]:
+        if terminated["__all__"] or truncated["__all__"]:
             self.agents = []
         else:
-            self.agents = list(obs_dict.keys())
+            self.agents = list(obs.keys())
 
-        return obs_dict, rewards_dict, terminateds_dict, truncateds_dict, infos_dict
+        return obs, rew, terminated, truncated, info
