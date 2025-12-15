@@ -40,6 +40,7 @@ class IPPOTrainer:
         """Centraliza la creación de la configuración del entorno."""
         env_params = self.exp_config["environment"]
         hyperparameters = self.exp_config["hyperparameters"]
+
         return {
             "base_env_class": env_class,
             "num_agents": env_params["num_agents"],
@@ -48,6 +49,24 @@ class IPPOTrainer:
             "traffic_density": env_params["traffic_density"],
             "agent_observation": self.exp_config["agent"]["observation"],
             "normalize_reward": env_params.get("normalize_reward", False),
+
+            # --- OPCIONALES (solo se añaden si existen en el YAML) ---
+            **({"start_seed": env_params["start_seed"]} 
+            if "start_seed" in env_params else {}),
+
+            **({"num_scenarios": env_params["num_scenarios"]} 
+            if "num_scenarios" in env_params else {}),
+
+            **({"map": env_params["map"]} 
+            if "map" in env_params else {}),
+
+            **({"test_start_seed": env_params["test_start_seed"]} 
+            if "test_start_seed" in env_params else {}),
+
+            **({"test_num_scenarios": env_params["test_num_scenarios"]} 
+            if "test_num_scenarios" in env_params else {}),
+
+            # --- SIGUE TODO TAL CUAL ---
             "gamma": hyperparameters["gamma"],
             # Rewards
             "crash_vehicle_penalty": env_params.get("crash_vehicle_penalty", 5.0),
@@ -56,6 +75,7 @@ class IPPOTrainer:
             "speed_reward": env_params.get("speed_reward", 0.1),
             "success_reward": env_params.get("success_reward", 10.0),
         }
+
 
     @staticmethod
     def policy_mapping_fn(agent_id: str, episode: Any = None, **kwargs) -> str:
@@ -133,12 +153,9 @@ class IPPOTrainer:
                 grad_clip=hyperparams["grad_clip"],
             )
             .multi_agent(
-                policies=self.policies,
-                policy_mapping_fn=self.policy_mapping_fn
+                policies=self.policies, policy_mapping_fn=self.policy_mapping_fn
             )
-            .environment(env=MetadriveEnvWrapper,
-                         env_config=self.env_config
-                         )
+            .environment(env=MetadriveEnvWrapper, env_config=self.env_config)
             .framework("torch")
             .resources(num_gpus=1)
             .env_runners(
@@ -148,19 +165,20 @@ class IPPOTrainer:
             )
             .evaluation(
                 # Ejecutar evaluación cada X iteraciones de entrenamiento
-                evaluation_interval=self.exp_config["experiment"]["evaluation_interval"],
+                evaluation_interval=self.exp_config["experiment"][
+                    "evaluation_interval"
+                ],
                 # Cuántos episodios completos rodar en cada evaluación
-                evaluation_duration=self.exp_config["experiment"]["evaluation_duration"],
+                evaluation_duration=self.exp_config["experiment"][
+                    "evaluation_duration"
+                ],
                 evaluation_duration_unit="episodes",
-                
                 # 1 worker dedicado a evaluación (paralelo a los de training)
                 # con poca RAM/CPU, poner esto en 0
                 evaluation_num_env_runners=1,
-                
                 # Greedy
-                evaluation_config={
-                    "explore": False
-                })
+                evaluation_config={"explore": False},
+            )
             .callbacks(PPOMetricsLogger)
             .update_from_dict(
                 {

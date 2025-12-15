@@ -39,7 +39,7 @@ class PPOMetricsLogger(RLlibCallback):
             "avg_velocity",
             "avg_acceleration",
             "avg_route_completion",
-            "total_energy"
+            "total_energy",
         ]
 
         self.eval_data_df = pd.DataFrame()
@@ -49,6 +49,7 @@ class PPOMetricsLogger(RLlibCallback):
         self.save_path = None
         self.save_frequency = None
         self.calls_since_last_save = 0
+        training_iteration = 0
 
     def on_algorithm_init(self, *, algorithm, **kwargs):
         custom_args = algorithm.config.get("callback_args", {}).get("PPOMetricsLogger", {})
@@ -62,7 +63,7 @@ class PPOMetricsLogger(RLlibCallback):
             "velocity": [],
             "acceleration": [],
             "energy": [],
-            "route_completion": []
+            "route_completion": [],
         }
 
     def on_episode_step(self, *, episode, **kwargs):
@@ -71,7 +72,7 @@ class PPOMetricsLogger(RLlibCallback):
                 "velocity": [],
                 "acceleration": [],
                 "energy": [],
-                "route_completion": []
+                "route_completion": [],
             }
 
         storage = self._episode_storage[episode.id_]
@@ -79,7 +80,7 @@ class PPOMetricsLogger(RLlibCallback):
         for agent_id in episode.get_agents_that_stepped():
             # episodio del agente individual
             sa_episode = episode.agent_episodes[agent_id]
-            
+
             # última info disponible
             infos = sa_episode.get_infos()
             info = infos[-1] if infos else {}
@@ -88,7 +89,6 @@ class PPOMetricsLogger(RLlibCallback):
             storage["acceleration"].append(float(info.get("acceleration", 0.0)))
             storage["energy"].append(float(info.get("step_energy", 0.0)))
             storage["route_completion"].append(float(info.get("route_completion", 0.0)))
-
 
     def on_episode_end(self, *, episode, env_runner, metrics_logger, **kwargs):
         """
@@ -104,7 +104,7 @@ class PPOMetricsLogger(RLlibCallback):
                 if "episode_return_raw" in last_info:
                     val = last_info["episode_return_raw"]
                     metrics_logger.log_value("episode_return_raw", val)
-        
+
         # logs de métricas
         if episode.id_ not in self._episode_storage:
             return
@@ -160,13 +160,13 @@ class PPOMetricsLogger(RLlibCallback):
 
         self.rewards_df.to_csv(self.save_path / "rewards_log.csv", index=False)
         self.policy_data_df.to_csv(self.save_path / "policy_log.csv", index=False)
+        self.eval_data_df.to_csv(self.save_path / "evaluation_log.csv", index=False)
 
-        if not self.eval_data_df.empty:
-            self.eval_data_df.to_csv(self.save_path / "evaluation_log.csv", index=False)
         self.calls_since_last_save = 0
 
     def on_train_result(self, *, algorithm, metrics_logger, result, **kwargs):
         training_iteration = result["training_iteration"]
+        self.training_iteration = training_iteration
 
         # 1. Steps totales
         total_steps = result.get("num_env_steps_sampled_lifetime")
@@ -218,7 +218,7 @@ class PPOMetricsLogger(RLlibCallback):
             training_iteration, total_steps, reward_mean, reward_raw_mean, current_lr
         )
         self.update_policy_data(training_iteration, total_steps, policy_data)
-        self.update_eval_data(total_steps, result)
+        self.update_eval_data(training_iteration, total_steps, result)
         self.calls_since_last_save += 1
         self.save_data()
 
@@ -242,23 +242,25 @@ class PPOMetricsLogger(RLlibCallback):
 
         print("se hizo una evaluación")
 
-        row_data = {"training_iteration": total_steps}
+        row_data = {
+            "training_iteration": training_iteration,
+            "total_steps": total_steps,
+        }
         has_data = False
-        
+
         for col in self.eval_metrics_cols:
             # metrics_logger suele no agregar '_mean' si usas log_value directamente,
             # pero depende de la configuración de windowing. RLlib suele promediar automáticamente.
             # Verificamos ambas llaves.
             val = source.get(col)
             if val is None:
-                val = source.get(f"{col}_mean") # Fallback
-            
+                val = source.get(f"{col}_mean")  # Fallback
+
             if val is not None:
                 row_data[col] = val
                 has_data = True
 
         if has_data:
             self.eval_data_df = pd.concat(
-                [self.eval_data_df, pd.DataFrame([row_data])], 
-                ignore_index=True
+                [self.eval_data_df, pd.DataFrame([row_data])], ignore_index=True
             )
