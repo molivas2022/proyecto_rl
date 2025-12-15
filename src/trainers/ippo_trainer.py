@@ -40,6 +40,7 @@ class IPPOTrainer:
         """Centraliza la creación de la configuración del entorno."""
         env_params = self.exp_config["environment"]
         hyperparameters = self.exp_config["hyperparameters"]
+
         return {
             "base_env_class": env_class,
             "num_agents": env_params["num_agents"],
@@ -48,6 +49,24 @@ class IPPOTrainer:
             "traffic_density": env_params["traffic_density"],
             "agent_observation": self.exp_config["agent"]["observation"],
             "normalize_reward": env_params.get("normalize_reward", False),
+
+            # --- OPCIONALES (solo se añaden si existen en el YAML) ---
+            **({"start_seed": env_params["start_seed"]} 
+            if "start_seed" in env_params else {}),
+
+            **({"num_scenarios": env_params["num_scenarios"]} 
+            if "num_scenarios" in env_params else {}),
+
+            **({"map": env_params["map"]} 
+            if "map" in env_params else {}),
+
+            **({"test_start_seed": env_params["test_start_seed"]} 
+            if "test_start_seed" in env_params else {}),
+
+            **({"test_num_scenarios": env_params["test_num_scenarios"]} 
+            if "test_num_scenarios" in env_params else {}),
+
+            # --- SIGUE TODO TAL CUAL ---
             "gamma": hyperparameters["gamma"],
             # Rewards
             "crash_vehicle_penalty": env_params.get("crash_vehicle_penalty", 5.0),
@@ -56,6 +75,7 @@ class IPPOTrainer:
             "speed_reward": env_params.get("speed_reward", 0.1),
             "success_reward": env_params.get("success_reward", 10.0),
         }
+
 
     @staticmethod
     def policy_mapping_fn(agent_id: str, episode: Any = None, **kwargs) -> str:
