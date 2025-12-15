@@ -4,6 +4,8 @@
     checkpoint_freq: 20
     start_from_checkpoint: False
     log_save_freq: 10
+    evaluation_interval: 3       # cada cuantos episodios hacer evaluación
+    evaluation_duration: 1       # cuantos experimentos promediar
   environment:
     type: "Roundabout"
     horizon: 1000
@@ -22,12 +24,12 @@
     observation: "Lidar"
     policy_type: "MLP"
   hyperparameters:
-    learning_rate: [[0, 0.001], [2000000, 0.0001]]
+    learning_rate: [[0, 0.001], [2_000_000, 0.0001]]
     n_epochs: 1000
     gamma: 0.995
     clip_param: 0.2
     lambda: 0.95
-    entropy_coeff: [[0, 0.001], [2000000, 0.0001]]
+    entropy_coeff: [[0, 0.001], [2_000_000, 0.0001]]
     rollout_fragment_length: 256
     minibatch_size: 512
     train_batch_size: 4096
