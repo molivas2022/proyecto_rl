@@ -1,17 +1,21 @@
 - experiment_name: "ippo_test1"
   experiment: 
-    seed: 42
+    #seed: 100
     checkpoint_freq: 20
     start_from_checkpoint: False
     log_save_freq: 10
   environment:
-    type: "Roundabout"
+    type: "PGMA"
     horizon: 1000
     num_agents: 1
     normalize_reward: True
     num_env_runners: 2
     allow_respawn: False
     traffic_density: 0
+    # Estas son necesarias para el random
+    start_seed: 9
+    num_scenarios: 1000
+    map: 8
   agent:
     algorithm: "IPPO"
     observation: "Lidar"
