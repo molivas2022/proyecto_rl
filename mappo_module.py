@@ -1,35 +1,39 @@
-import gymnasium as gym
 import torch
 import torch.nn as nn
-from typing import Optional, Union, Dict, Any
-
-from ray.rllib.core.rl_module.rl_module import RLModule, DefaultModelConfig
-from ray.rllib.core.rl_module.torch.torch_rl_module import TorchRLModule
-from ray.rllib.core.rl_module.apis.value_function_api import ValueFunctionAPI
+import gymnasium as gym
+from typing import Any, Dict, Optional, Union
 from ray.rllib.core.columns import Columns
+from ray.rllib.core.rl_module.torch import TorchRLModule
+from ray.rllib.core.rl_module.apis import ValueFunctionAPI
+from ray.rllib.core.rl_module.rl_module import RLModuleConfig, DefaultModelConfig
+
+def init_weights(m):
+    if isinstance(m, nn.Linear):
+        nn.init.xavier_uniform_(m.weight)
+        nn.init.constant_(m.bias, 0)
 
 class MAPPOTorchRLModule(TorchRLModule, ValueFunctionAPI):
     """
-    MAPPO Module for MetaDrive.
+    Standard MAPPO Module: Contains its OWN Actor and its OWN Critic.
+    We will synchronize the Critic weights externally via Callbacks.
     """
     def __init__(
             self,
             *,
-            observation_space: Optional[gym.Space],
-            action_space: Optional[gym.Space],
-            model_config: Optional[Union[dict, DefaultModelConfig]],
+            observation_space: Optional[gym.Space] = None,
+            action_space: Optional[gym.Space] = None,
             inference_only: Optional[bool] = None,
             learner_only: bool = False,
-            catalog_class=None,
+            model_config: Optional[Union[dict, DefaultModelConfig]] = None,
             **kwargs,
         ):
+        # 1. Pass explicit arguments to super() to avoid Deprecation/Config errors
         super().__init__(
             observation_space=observation_space,
             action_space=action_space,
             inference_only=inference_only,
             learner_only=learner_only,
             model_config=model_config,
-            catalog_class=catalog_class,
             **kwargs,
         )
 
@@ -41,19 +45,21 @@ class MAPPOTorchRLModule(TorchRLModule, ValueFunctionAPI):
         self.global_state_dim = self.observation_space["state"].shape[0]
         self.action_dim = self.action_space.shape[0]
         
-        hidden_dim = self.model_config.get("hidden_dim", 256)
+        # Safe config access
+        hidden_dim = 256
+        if self.model_config:
+            hidden_dim = self.model_config.get("hidden_dim", 256)
 
-        # --- ACTOR (Policy) ---
+        # --- ACTOR (Unique per agent) ---
         self.actor_encoder = nn.Sequential(
             nn.Linear(self.local_obs_dim, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU()
         )
-        # Output is [Batch, ActionDim * 2] (Concatenated Mean and LogStd)
         self.pi_head = nn.Linear(hidden_dim, self.action_dim * 2)
 
-        # --- CRITIC (Value) ---
+        # --- CRITIC (To be synchronized) ---
         self.critic_encoder = nn.Sequential(
             nn.Linear(self.global_state_dim, hidden_dim),
             nn.ReLU(),
@@ -62,12 +68,7 @@ class MAPPOTorchRLModule(TorchRLModule, ValueFunctionAPI):
         )
         self.vf_head = nn.Linear(hidden_dim, 1)
 
-        # Initialize weights
-        def init_weights(m):
-            if isinstance(m, nn.Linear):
-                nn.init.xavier_uniform_(m.weight)
-                nn.init.constant_(m.bias, 0)
-        
+        # Initialize
         self.actor_encoder.apply(init_weights)
         self.critic_encoder.apply(init_weights)
         self.pi_head.apply(init_weights)
@@ -75,13 +76,9 @@ class MAPPOTorchRLModule(TorchRLModule, ValueFunctionAPI):
 
     def _forward_inference(self, batch: Dict[str, Any], **kwargs):
         obs = batch[Columns.OBS]["obs"]
-        
         actor_features = self.actor_encoder(obs)
         action_logits = self.pi_head(actor_features)
-        
-        return {
-            Columns.ACTION_DIST_INPUTS: action_logits
-        }
+        return {Columns.ACTION_DIST_INPUTS: action_logits}
 
     def _forward_exploration(self, batch: Dict[str, Any], **kwargs):
         return self._forward_inference(batch, **kwargs)
@@ -98,7 +95,7 @@ class MAPPOTorchRLModule(TorchRLModule, ValueFunctionAPI):
         value_pred = self.vf_head(critic_features).squeeze(-1)
 
         return {
-            Columns.ACTION_DIST_INPUTS: action_logits, # Return raw tensor
+            Columns.ACTION_DIST_INPUTS: action_logits,
             Columns.VF_PREDS: value_pred,
         }
 

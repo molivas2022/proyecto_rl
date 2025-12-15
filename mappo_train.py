@@ -4,9 +4,11 @@ current_dir = Path.cwd()
 ### ARGUMENTOS
 
 EXP_DIR = current_dir / "experimentos" / "mappoexp"
-LOG_SAVE_FREQUENCY = 5
+LOG_SAVE_FREQUENCY = 3
 
 ### TODOS LOS IMPORTS.
+
+import copy
 
 from mappo_wrapper import MAPPOEnvWrapper
 from mappo_module import MAPPOTorchRLModule
@@ -80,6 +82,86 @@ class PPOMetricsLogger(RLlibCallback):
         self.calls_since_last_save = 0
 
     def on_train_result(self, *, algorithm, metrics_logger, result, **kwargs):
+        training_iteration = result["training_iteration"]
+        policies = set(result["config"]["policies"].keys())
+        policy_data = {}
+
+        reward_mean = result["env_runners"]["episode_return_mean"] / len(policies)
+        print(f"Iteration {training_iteration} finished, with reward: {reward_mean}")
+
+        for policy, logs in result["learners"].items():
+            if policy in policies:
+                policy_data[policy] = logs
+
+        self.update_reward_data(training_iteration, reward_mean)
+        self.update_policy_data(training_iteration, policy_data)
+        self.calls_since_last_save += 1
+        self.save_data()
+
+class CentralizedCallback(PPOMetricsLogger):
+
+    def _sync_critics(self, algorithm):
+        """
+        Called at the end of Algorithm.train().
+        We use this to Average the Critic weights across all agents.
+        """
+        
+        # 1. Get the current weights from the Learner Group (CPU or GPU)
+        # Structure: {"policy_0": {"layer_name": tensor}, "policy_1": ...}
+        weights = algorithm.learner_group.get_weights()
+        
+        # Filter for actual agent policies (ignore default_policy if unused)
+        policy_ids = [pid for pid in weights.keys() if "policy_" in pid]
+        
+        if len(policy_ids) < 2:
+            return  # No need to sync if only 1 agent
+
+        # 2. Identify which weights belong to the Critic
+        # We look for keys containing 'critic_encoder' or 'vf_head' based on your module definition
+        # We take the first policy as a template to find the keys.
+        template_weights = weights[policy_ids[0]]
+        critic_keys = [k for k in template_weights.keys() if "critic_encoder" in k or "vf_head" in k]
+
+        if not critic_keys:
+            print("Warning: No critic keys found to sync.")
+            return
+
+        # 3. Calculate the Mean (Average) for every critic parameter
+        avg_critic_weights = {}
+        n_agents = len(policy_ids)
+
+        for k in critic_keys:
+            # Sum the tensors for this specific layer across all policies
+            total_weight = sum(weights[pid][k] for pid in policy_ids)
+            # Divide by N
+            avg_critic_weights[k] = total_weight / n_agents
+
+        # 4. Create the update dictionary
+        # We must preserve the unique Actor weights for each agent, 
+        # so we copy their existing weights and overwrite ONLY the critic.
+        new_weights_dict = {}
+
+        for pid in policy_ids:
+            # Start with the agent's specific weights (Actor + Old Critic)
+            # We use copy to ensure we don't modify the original dict structure mid-loop
+            agent_weights = copy.deepcopy(weights[pid])
+            
+            # Overwrite the Critic parts with the Global Average
+            for k in critic_keys:
+                agent_weights[k] = avg_critic_weights[k]
+            
+            new_weights_dict[pid] = agent_weights
+
+        # 5. Set the weights back to the Learner
+        # The Learner will automatically broadcast these new weights to 
+        # EnvRunners (workers) at the start of the next iteration.
+        algorithm.learner_group.set_weights(new_weights_dict)
+
+        print("Synchronized!")
+    
+    def on_train_result(self, *, algorithm, metrics_logger, result, **kwargs):
+        self._sync_critics(algorithm)
+
         training_iteration = result["training_iteration"]
         policies = set(result["config"]["policies"].keys())
         policy_data = {}
@@ -199,7 +281,7 @@ class MAPPOExperiment:
                 # Prefiero no cambiar esto (por ahora) la verdad
                 # rollout_fragment_length=self.exp_config["hyperparameters"]["rollout_fragment_length"],
             )
-            .callbacks(PPOMetricsLogger)
+            .callbacks(CentralizedCallback)
             .update_from_dict({
                 "callback_args": {
                     "exp_dir": EXP_DIR,
