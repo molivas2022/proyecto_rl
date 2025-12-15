@@ -8,6 +8,7 @@
     type: "Roundabout"
     horizon: 1000
     num_agents: 10
+    normalize_reward: True
     num_env_runners: 2
     allow_respawn: False
     traffic_density: 0
@@ -16,14 +17,14 @@
     observation: "Lidar"
     policy_type: "MLP"
   hyperparameters:
-    learning_rate: [[0, 0.0001], [2e6, 0.00005]]
+    learning_rate: [[0, 0.001], [2000000, 0.0001]]
     n_epochs: 1000
     gamma: 0.995
     clip_param: 0.2
     lambda: 0.95
-    entropy_coeff: [[0, 0.005], [2e6, 0.001]]
+    entropy_coeff: [[0, 0.001], [2000000, 0.0001]]
     rollout_fragment_length: 256
     minibatch_size: 512
     train_batch_size: 4096
-    vf_clip_param: 10.0
+    vf_clip_param: 100.0 # Basicamente no clipping
     grad_clip: 0.5
