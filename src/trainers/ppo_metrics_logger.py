@@ -110,7 +110,7 @@ class PPOMetricsLogger(RLlibCallback):
 
         env_runners_metrics = result.get("env_runners", {})
 
-        reward_raw_mean = env_runners_metrics.get("episode_return_raw", 0.0)
+        reward_raw_mean = env_runners_metrics.get("episode_return_raw", None)
 
         # Recompesas normalizadas
         episode_return_mean = env_runners_metrics.get("episode_return_mean", 0.0)
@@ -120,6 +120,10 @@ class PPOMetricsLogger(RLlibCallback):
             else 1
         )
         reward_mean = episode_return_mean / num_policies
+
+        # No hay normalización, entonces reward_mean es en verdad reward_raw
+        if reward_raw_mean == None:
+            reward_raw_mean = reward_mean
 
         print(
             f"Iter: {training_iteration} | Steps: {total_steps} | "
