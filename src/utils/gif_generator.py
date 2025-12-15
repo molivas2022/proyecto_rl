@@ -1,10 +1,10 @@
 from ray.rllib.algorithms.algorithm import Algorithm
 from src.utils.execute_episode import execute_one_episode
-from metadrive import MultiAgentRoundaboutEnv
+from metadrive import MultiAgentRoundaboutEnv, MultiAgentIntersectionEnv
 from pathlib import Path
 
 
-def generate_gif(envclass, envconfig, modelpath, savepath, title, seed=42):
+def generate_gif(envclass, envconfig, modelpath, savepath, title):
     """
     genera gif de un episodio utilizando un algoritmo
     Args:
@@ -44,20 +44,20 @@ def generate_gif(envclass, envconfig, modelpath, savepath, title, seed=42):
 
 if __name__ == "__main__":
     exp_dir = Path.cwd() / "experiments" / "ippo_test1"
-    modelpath = exp_dir / "checkpoints" / "20"
+    modelpath = exp_dir / "checkpoints" / "460"
 
     for i in range(3):
+        curr_seed = 57 + i
         generate_gif(
             envclass=MultiAgentRoundaboutEnv,
             envconfig=dict(
-                num_agents=5,
-                allow_respawn=False,
+                num_agents=1,
+                random_lane_num=True,
                 random_spawn_lane_index=True,
-                start_seed=57,
                 traffic_density=0,
+                start_seed=curr_seed,
                 # agent_observation=StackedLidarObservation
             ),
-            seed=0,
             modelpath=modelpath,
             savepath=str(exp_dir / f"example_{i}.gif"),
             title="IPPO",

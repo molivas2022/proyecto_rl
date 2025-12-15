@@ -190,7 +190,7 @@ class PPOMetricsLogger(RLlibCallback):
 
         env_runners_metrics = result.get("env_runners", {})
 
-        reward_raw_mean = env_runners_metrics.get("episode_return_raw", 0.0)
+        reward_raw_mean = env_runners_metrics.get("episode_return_raw", None)
 
         # Recompesas normalizadas
         episode_return_mean = env_runners_metrics.get("episode_return_mean", 0.0)
@@ -200,6 +200,10 @@ class PPOMetricsLogger(RLlibCallback):
             else 1
         )
         reward_mean = episode_return_mean / num_policies
+
+        # No hay normalización, entonces reward_mean es en verdad reward_raw
+        if reward_raw_mean == None:
+            reward_raw_mean = reward_mean
 
         print(
             f"Iter: {training_iteration} | Steps: {total_steps} | "
@@ -233,7 +237,7 @@ class PPOMetricsLogger(RLlibCallback):
         for col in self.eval_metrics_cols:
             # metrics_logger suele no agregar '_mean' si usas log_value directamente,
             # pero depende de la configuración de windowing. RLlib suele promediar automáticamente.
-            # Verificamos ambas llaves.
+# Verificamos ambas llaves.
             val = source.get(col)
             if val is None:
                 val = source.get(f"{col}_mean") # Fallback
