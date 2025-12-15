@@ -8,16 +8,21 @@
     type: "Roundabout"
     horizon: 1000
     num_agents: 1
-    normalize_reward: True
+    normalize_reward: False
     num_env_runners: 2
     allow_respawn: False
     traffic_density: 0
+    crash_vehicle_penalty: 10.0
+    crash_object_penalty: 10.0
+    out_of_road_penalty: 10.0
+    speed_reward: 0.01
+    success_reward: 50.0
   agent:
     algorithm: "IPPO"
     observation: "Lidar"
     policy_type: "MLP"
   hyperparameters:
-    learning_rate: 0.001
+    learning_rate: [[0, 0.001], [2000000, 0.0001]]
     n_epochs: 1000
     gamma: 0.995
     clip_param: 0.2
