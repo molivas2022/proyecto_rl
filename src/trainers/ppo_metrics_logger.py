@@ -222,7 +222,7 @@ class PPOMetricsLogger(RLlibCallback):
         self.calls_since_last_save += 1
         self.save_data()
 
-    def update_eval_data(self, total_steps, result):
+    def update_eval_data(self, training_iteration, total_steps, result):
 
         # Si es evaluación, a veces está en 'evaluation'
         if "evaluation" not in result:
