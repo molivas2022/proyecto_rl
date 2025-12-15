@@ -44,7 +44,7 @@ def generate_gif(envclass, envconfig, modelpath, savepath, title):
 
 if __name__ == "__main__":
     exp_dir = Path.cwd() / "experiments" / "ippo_test1"
-    modelpath = exp_dir / "checkpoints" / "460"
+    modelpath = exp_dir / "checkpoints" / "60"
 
     for i in range(3):
         curr_seed = 57 + i
