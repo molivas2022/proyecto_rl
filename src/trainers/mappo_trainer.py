@@ -1,0 +1,329 @@
+from pathlib import Path
+import copy
+
+
+import ray
+from ray.rllib.algorithms.ppo import PPOConfig
+from ray.rllib.policy.policy import PolicySpec
+import re
+from ray.rllib.core.rl_module.rl_module import RLModuleSpec
+from ray.rllib.core.rl_module.multi_rl_module import MultiRLModuleSpec
+
+from .ppo_metrics_logger import PPOMetricsLogger
+from ray.rllib.callbacks.callbacks import RLlibCallback
+
+from src.envs.mappo_wrapper import MAPPOEnvWrapper
+from src.models.mappo_model import MAPPOTorchRLModule
+
+
+# TODO: Mover despues del refactor
+# TODO: Agregar on_algo_end (creo que se debe llamar algo asi), por ahora simplemente puse frequencia de guardado 1.
+# TODO: Dejar de medir métricas en base a training_iteration y hacerlo en base a time_steps
+
+
+class CentralizedCallback(RLlibCallback):
+
+    def _sync_critics(self, algorithm):
+        """
+        Called at the end of Algorithm.train().
+        We use this to Average the Critic weights across all agents.
+        """
+
+        # 1. Get the current weights from the Learner Group (CPU or GPU)
+        # Structure: {"policy_0": {"layer_name": tensor}, "policy_1": ...}
+        weights = algorithm.learner_group.get_weights()
+
+        # Filter for actual agent policies (ignore default_policy if unused)
+        policy_ids = [pid for pid in weights.keys() if "policy_" in pid]
+
+        if len(policy_ids) < 2:
+            return  # No need to sync if only 1 agent
+
+        # 2. Identify which weights belong to the Critic
+        # We look for keys containing 'critic_encoder' or 'vf_head' based on your module definition
+        # We take the first policy as a template to find the keys.
+        template_weights = weights[policy_ids[0]]
+        critic_keys = [k for k in template_weights.keys() if "critic_encoder" in k or "vf_head" in k]
+
+        if not critic_keys:
+            print("Warning: No critic keys found to sync.")
+            return
+
+        # 3. Calculate the Mean (Average) for every critic parameter
+        avg_critic_weights = {}
+        n_agents = len(policy_ids)
+
+        for k in critic_keys:
+            # Sum the tensors for this specific layer across all policies
+            total_weight = sum(weights[pid][k] for pid in policy_ids)
+            # Divide by N
+            avg_critic_weights[k] = total_weight / n_agents
+
+        # 4. Create the update dictionary
+        # We must preserve the unique Actor weights for each agent, 
+        # so we copy their existing weights and overwrite ONLY the critic.
+        new_weights_dict = {}
+
+        for pid in policy_ids:
+            # Start with the agent's specific weights (Actor + Old Critic)
+            # We use copy to ensure we don't modify the original dict structure mid-loop
+            agent_weights = copy.deepcopy(weights[pid])
+
+            # Overwrite the Critic parts with the Global Average
+            for k in critic_keys:
+                agent_weights[k] = avg_critic_weights[k]
+
+            new_weights_dict[pid] = agent_weights
+
+        # 5. Set the weights back to the Learner
+        # The Learner will automatically broadcast these new weights to 
+        # EnvRunners (workers) at the start of the next iteration.
+        algorithm.learner_group.set_weights(new_weights_dict)
+
+        print("Synchronized!")
+
+    def on_train_result(self, *, algorithm, metrics_logger, result, **kwargs):
+        self._sync_critics(algorithm)
+#         training_iteration = result["training_iteration"]
+# 
+#         # 1. Steps totales
+#         total_steps = result.get("num_env_steps_sampled_lifetime")
+#         if total_steps is None:
+#             total_steps = result.get("env_runners", {}).get(
+#                 "num_env_steps_sampled_lifetime"
+#             )
+#         if total_steps is None:
+#             total_steps = 0
+# 
+#         policies = set(result["config"]["policies"].keys())
+#         policy_data = {}
+# 
+#         # 2. Learning Rate
+#         current_lr = 0.0
+#         learners = result.get("learners", {})
+#         if "policy_0" in learners:
+#             current_lr = learners["policy_0"].get(
+#                 "default_optimizer_learning_rate", 0.0
+#             )
+# 
+#         env_runners_metrics = result.get("env_runners", {})
+# 
+#         reward_raw_mean = env_runners_metrics.get("episode_return_raw", None)
+# 
+#         # Recompesas normalizadas
+#         episode_return_mean = env_runners_metrics.get("episode_return_mean", 0.0)
+#         num_policies = (
+#             len(result["config"]["policies"])
+#             if len(result["config"]["policies"]) > 0
+#             else 1
+#         )
+#         reward_mean = episode_return_mean / num_policies
+# 
+#         # No hay normalización, entonces reward_mean es en verdad reward_raw
+#         if reward_raw_mean == None:
+#             reward_raw_mean = reward_mean
+# 
+#         print(
+#             f"Iter: {training_iteration} | Steps: {total_steps} | "
+#             f"Rew(Norm): {reward_mean:.2f} | Rew(Raw): {reward_raw_mean:.2f} | LR: {current_lr:.2e}"
+#         )
+# 
+#         for policy, logs in learners.items():
+#             if policy in policies:
+#                 policy_data[policy] = logs
+# 
+#         self.update_reward_data(
+#             training_iteration, total_steps, reward_mean, reward_raw_mean, current_lr
+#         )
+#         self.update_policy_data(training_iteration, total_steps, policy_data)
+#         self.update_eval_data(total_steps, result)
+#         self.calls_since_last_save += 1
+#         self.save_data()
+
+#     def on_train_result(self, *, algorithm, metrics_logger, result, **kwargs):
+#         self._sync_critics(algorithm)
+# 
+#         training_iteration = result["training_iteration"]
+#         policies = set(result["config"]["policies"].keys())
+#         policy_data = {}
+# 
+#         reward_mean = result["env_runners"]["episode_return_mean"] / len(policies)
+#         print(f"Iteration {training_iteration} finished, with reward: {reward_mean}")
+# 
+#         for policy, logs in result["learners"].items():
+#             if policy in policies:
+#                 policy_data[policy] = logs
+# 
+#         self.update_reward_data(training_iteration, reward_mean)
+#         self.update_policy_data(training_iteration, policy_data)
+#         self.calls_since_last_save += 1
+#         self.save_data()
+
+
+# EXPERIMENT
+# TODO: start for checkpoint
+# TODO: cnn
+class MAPPOTrainer:
+    def __init__(
+        self,
+        exp_config,
+        env_class,
+        exp_dir,
+    ):
+        self.exp_config = exp_config.copy()
+        self.exp_dir = exp_dir
+
+        # Configuración del entorno
+        self.env_config = self._build_env_config(env_class)
+
+        # Inicialización de espacios y especificaciones
+        self.policies = {}
+        self.rl_module_spec = None
+        self._initialize_spaces_and_specs()
+
+    def _build_env_config(self, env_class):
+        """Centraliza la configuración del entorno para MAPPO."""
+        env_params = self.exp_config["environment"]
+        # Nota: Ajusta si necesitas más parámetros específicos de MAPPO aquí
+        return {
+            "base_env_class": env_class,
+            "num_agents": env_params["num_agents"],
+            "allow_respawn": env_params["allow_respawn"],
+            "horizon": env_params["horizon"],
+            "traffic_density": env_params["traffic_density"],
+            # Asumo que MAPPOEnvWrapper maneja internamente la creación del estado global
+        }
+
+    @staticmethod
+    def policy_mapping_fn(agent_id, episode=None, **kwargs):
+        match = re.search(r"(\d+)", str(agent_id))
+        if match:
+            return f"policy_{match.group(1)}"
+        return f"policy_{agent_id}"
+
+    def _initialize_spaces_and_specs(self):
+        """
+        Instancia entorno temporal MAPPO para obtener espacios.
+        Crucial: El wrapper debe retornar un Dict space con keys 'obs' y 'state'.
+        """
+        temp_env = MAPPOEnvWrapper(self.env_config)
+        try:
+            temp_env.reset()
+
+            rl_module_specs_dict = {}
+
+            for agent_id, obs_space in temp_env.observation_spaces.items():
+                act_space = temp_env.action_spaces[agent_id]
+                policy_id = self.policy_mapping_fn(agent_id, None)
+
+                # Definición de Policies
+                if policy_id not in self.policies:
+                    self.policies[policy_id] = PolicySpec(
+                        observation_space=obs_space,
+                        action_space=act_space,
+                        config={}
+                    )
+
+                # Definición de RLModules (Específico MAPPO)
+                if policy_id not in rl_module_specs_dict:
+                    model_config = {"hidden_dim": 256}
+
+                    rl_module_specs_dict[policy_id] = RLModuleSpec(
+                        module_class=MAPPOTorchRLModule,
+                        observation_space=obs_space,
+                        action_space=act_space,
+                        model_config=model_config,
+                    )
+
+            self.rl_module_spec = MultiRLModuleSpec(
+                rl_module_specs=rl_module_specs_dict
+            )
+
+        finally:
+            if hasattr(temp_env, "env"):
+                temp_env.env.close()
+
+    def _build_algorithm_config(self):
+        hyperparams = self.exp_config["hyperparameters"]
+
+        config = (
+            PPOConfig()
+            .training(
+                gamma=hyperparams["gamma"],
+                clip_param=hyperparams["clip_param"],
+                lr=hyperparams["learning_rate"],
+                entropy_coeff=hyperparams["entropy_coeff"],
+                lambda_=hyperparams["lambda"],
+                train_batch_size_per_learner=hyperparams["train_batch_size"],
+                minibatch_size=hyperparams["minibatch_size"],
+                vf_clip_param=hyperparams["vf_clip_param"],
+                grad_clip=hyperparams["grad_clip"],
+            )
+            .multi_agent(
+                policies=self.policies,
+                policy_mapping_fn=self.policy_mapping_fn
+            )
+            .environment(
+                env=MAPPOEnvWrapper,
+                env_config=self.env_config
+            )
+            .framework("torch")
+            .resources(num_gpus=1)
+            .env_runners(
+                num_env_runners=self.exp_config["environment"]["num_env_runners"],
+            )
+            # Reincorporo la lógica de evaluación que tenías en IPPO
+            # Es inconsistente tenerla en uno y no en el otro si es para comparar.
+            .evaluation(
+                evaluation_interval=self.exp_config["experiment"].get("evaluation_interval", 50),
+                evaluation_duration=self.exp_config["experiment"].get("evaluation_duration", 5),
+                evaluation_duration_unit="episodes",
+                evaluation_num_env_runners=1,
+                evaluation_config={"explore": False},
+            )
+            .callbacks([PPOMetricsLogger, CentralizedCallback])
+            .update_from_dict(
+                {
+                    "callback_args": {
+                        "PPOMetricsLogger":{
+                        "exp_dir": self.exp_dir,
+                        "log_save_frequency": self.exp_config["experiment"].get("log_save_freq", 100),
+                        }
+                    }
+                }
+            )
+            .rl_module(rl_module_spec=self.rl_module_spec)
+        )
+        return config
+
+    def train(self) -> Path:
+        if not ray.is_initialized():
+            ray.init(ignore_reinit_error=True)
+
+        print("Building MAPPO Algorithm...")
+        algo_config = self._build_algorithm_config()
+        algo = algo_config.build()
+
+        # Checkpoint inicial
+        save_dir = self.exp_dir / "checkpoints"
+        algo.save_to_path(save_dir / "0")
+
+        print("Starting MAPPO training loop")
+        n_epochs = self.exp_config["hyperparameters"]["n_epochs"]
+        checkpoint_freq = self.exp_config["experiment"]["checkpoint_freq"]
+
+        for i in range(n_epochs):
+            algo.train()
+
+            epoch = i + 1
+            if epoch % checkpoint_freq == 0:
+                print(f"Saving checkpoint at epoch {epoch}")
+                algo.save_to_path(save_dir / str(epoch))
+
+        print("Training complete. Saving final state.")
+        final_dir = algo.save_to_path(save_dir / "final")
+
+        algo.stop()
+        ray.shutdown()
+
+        return final_dir
