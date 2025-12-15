@@ -39,6 +39,7 @@ class IPPOTrainer:
     def _build_env_config(self, env_class: Any) -> Dict[str, Any]:
         """Centraliza la creación de la configuración del entorno."""
         env_params = self.exp_config["environment"]
+        hyperparameters = self.exp_config["hyperparameters"]
         return {
             "base_env_class": env_class,
             "num_agents": env_params["num_agents"],
@@ -46,6 +47,8 @@ class IPPOTrainer:
             "horizon": env_params["horizon"],
             "traffic_density": env_params["traffic_density"],
             "agent_observation": self.exp_config["agent"]["observation"],
+            "normalize_reward": env_params.get("normalize_reward", False),
+            "gamma": hyperparameters["gamma"],
         }
 
     @staticmethod
