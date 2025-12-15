@@ -1,11 +1,10 @@
 import pandas as pd
-from pathlib import Path
 from ray.rllib.callbacks.callbacks import RLlibCallback
-from pprint import pprint
 import numpy as np
 
 
-# TODO: Agregar on_algo_end (creo que se debe llamar algo asi), por ahora simplemente puse frequencia de guardado 0 mod numero de iteraciones
+# TODO: Agregar on_algo_end (creo que se debe llamar algo asi), por ahora
+# simplemente puse frequencia de guardado 0 mod numero de iteraciones
 
 
 class PPOMetricsLogger(RLlibCallback):
@@ -44,6 +43,7 @@ class PPOMetricsLogger(RLlibCallback):
         ]
 
         self.eval_data_df = pd.DataFrame()
+        self.last_eval_steps = -1
 
         self._episode_storage = {}
         self.save_path = None
@@ -52,7 +52,7 @@ class PPOMetricsLogger(RLlibCallback):
         training_iteration = 0
 
     def on_algorithm_init(self, *, algorithm, **kwargs):
-        custom_args = algorithm.config.get("callback_args", {})
+        custom_args = algorithm.config.get("callback_args", {}).get("PPOMetricsLogger", {})
         self.save_path = custom_args.get("exp_dir")
         self.save_frequency = custom_args.get("log_save_frequency")
         print(f"Callback initialized with: {self.save_path}, {self.save_frequency}")
@@ -222,18 +222,25 @@ class PPOMetricsLogger(RLlibCallback):
         self.calls_since_last_save += 1
         self.save_data()
 
-    def update_eval_data(self, training_iteration, total_steps, result):
-        # Buscar métricas personalizadas en la ubicación estándar del nuevo stack
-        # Usualmente bajo env_runners si se usó metrics_logger
-        source = result.get("env_runners", {})
+    def update_eval_data(self, total_steps, result):
 
         # Si es evaluación, a veces está en 'evaluation'
-        if (
-            "evaluation" not in result
-            or self.training_iteration % self.save_frequency != 0
-        ):
-            # source = result["evaluation"].get("env_runners", source)
+        if "evaluation" not in result:
             return
+
+        source = result.get("evaluation", {}).get("env_runners",{})
+
+        current_eval_steps = source.get("num_env_steps_sampled_lifetime")
+
+        if current_eval_steps is None:
+            current_eval_steps = total_steps
+
+        if current_eval_steps == self.last_eval_steps:
+            return
+
+        self.last_eval_steps = current_eval_steps
+
+        print("se hizo una evaluación")
 
         row_data = {
             "training_iteration": training_iteration,

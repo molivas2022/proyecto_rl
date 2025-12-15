@@ -9,7 +9,7 @@
   environment:
     type: "PGMA"
     horizon: 1000
-    num_agents: 1
+    num_agents: 3
     normalize_reward: False
     num_env_runners: 2
     allow_respawn: False
@@ -27,7 +27,7 @@
   agent:
     algorithm: "IPPO"
     observation: "Lidar"
-    policy_type: "MLP"
+    policy_type: "MLP"  # en mapo esto es siempre MLP
   hyperparameters:
     learning_rate: [[0, 0.001], [2_000_000, 0.0001]]
     n_epochs: 1000
@@ -36,7 +36,45 @@
     lambda: 0.95
     entropy_coeff: [[0, 0.001], [2_000_000, 0.0001]]
     rollout_fragment_length: 256
-    minibatch_size: 512
-    train_batch_size: 4096
+    minibatch_size: 128
+    train_batch_size: 1024
+    vf_clip_param: 100.0 # Basicamente no clipping
+    grad_clip: 0.5
+
+- experiment_name: "mappo_test1"
+  experiment: 
+    seed: 42
+    checkpoint_freq: 20
+    start_from_checkpoint: False
+    log_save_freq: 10
+    evaluation_interval: 3       # cada cuantos episodios hacer evaluación
+    evaluation_duration: 1       # cuantos experimentos promediar
+  environment:
+    type: "Roundabout"
+    horizon: 1000
+    num_agents: 3
+    normalize_reward: False
+    num_env_runners: 2
+    allow_respawn: False
+    traffic_density: 0
+    crash_vehicle_penalty: 10.0
+    crash_object_penalty: 10.0
+    out_of_road_penalty: 10.0
+    speed_reward: 0.01
+    success_reward: 50.0
+  agent:
+    algorithm: "MAPPO"
+    observation: "Lidar"
+    policy_type: "MLP"  # en mapo esto es siempre MLP
+  hyperparameters:
+    learning_rate: [[0, 0.001], [2_000_000, 0.0001]]
+    n_epochs: 1000
+    gamma: 0.995
+    clip_param: 0.2
+    lambda: 0.95
+    entropy_coeff: [[0, 0.001], [2_000_000, 0.0001]]
+    rollout_fragment_length: 256
+    minibatch_size: 128
+    train_batch_size: 1024
     vf_clip_param: 100.0 # Basicamente no clipping
     grad_clip: 0.5

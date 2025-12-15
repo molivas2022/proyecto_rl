@@ -18,10 +18,11 @@ from metadrive.obs.state_obs import LidarStateObservation
 # from src.utils import generate_gif
 from src.models import MetaDriveCNN, MetaDriveStackedCNN
 from src.envs import StackedLidarObservation
-from src.trainers import IPPOTrainer
+from src.trainers import IPPOTrainer, MAPPOTrainer
 
 ALGORITHMS = {
     "IPPO": IPPOTrainer,
+    "MAPPO": MAPPOTrainer
 }
 
 OBSERVATIONS = {
@@ -145,8 +146,11 @@ def run_experiments():
                     use_cnn=use_cnn_flag,
                 )
             elif algo_str == "MAPPO":
-                exp = None
-                pass
+                exp = MAPPOTrainer(
+                    exp_config=exp_config,
+                    env_class=EnvClass,
+                    exp_dir=CURRENT_EXP_DIR,
+                )
 
             _ = exp.train()
             print(f">>> Finalizado: {exp_name}")

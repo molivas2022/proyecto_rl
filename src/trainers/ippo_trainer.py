@@ -183,10 +183,10 @@ class IPPOTrainer:
             .update_from_dict(
                 {
                     "callback_args": {
+                        "PPOMetricsLogger":{
                         "exp_dir": self.exp_dir,
-                        "log_save_frequency": self.exp_config["experiment"][
-                            "log_save_freq"
-                        ],
+                        "log_save_frequency": self.exp_config["experiment"]["log_save_freq"],
+                        }
                     }
                 }
             )
