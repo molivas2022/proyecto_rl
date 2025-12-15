@@ -1,0 +1,8 @@
+experimentos/
+__pycache__/
+.git/
+.env
+venv/
+.idea/
+.vscode/
+*.pyc

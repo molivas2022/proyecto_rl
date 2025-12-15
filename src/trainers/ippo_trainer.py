@@ -72,6 +72,7 @@ class IPPOTrainer:
             "crash_vehicle_penalty": env_params.get("crash_vehicle_penalty", 5.0),
             "crash_object_penalty": env_params.get("crash_object_penalty", 5.0),
             "out_of_road_penalty": env_params.get("out_of_road_penalty", 5.0),
+            "driving_reward": env_params.get("driving_reward", 1.0),
             "speed_reward": env_params.get("speed_reward", 0.1),
             "success_reward": env_params.get("success_reward", 10.0),
         }
