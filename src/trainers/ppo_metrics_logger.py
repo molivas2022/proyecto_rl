@@ -49,6 +49,7 @@ class PPOMetricsLogger(RLlibCallback):
         self.save_path = None
         self.save_frequency = None
         self.calls_since_last_save = 0
+        training_iteration = 0
 
     def on_algorithm_init(self, *, algorithm, **kwargs):
         custom_args = algorithm.config.get("callback_args", {})
@@ -159,13 +160,13 @@ class PPOMetricsLogger(RLlibCallback):
 
         self.rewards_df.to_csv(self.save_path / "rewards_log.csv", index=False)
         self.policy_data_df.to_csv(self.save_path / "policy_log.csv", index=False)
+        self.eval_data_df.to_csv(self.save_path / "evaluation_log.csv", index=False)
 
-        if not self.eval_data_df.empty:
-            self.eval_data_df.to_csv(self.save_path / "evaluation_log.csv", index=False)
         self.calls_since_last_save = 0
 
     def on_train_result(self, *, algorithm, metrics_logger, result, **kwargs):
         training_iteration = result["training_iteration"]
+        self.training_iteration = training_iteration
 
         # 1. Steps totales
         total_steps = result.get("num_env_steps_sampled_lifetime")
@@ -227,8 +228,12 @@ class PPOMetricsLogger(RLlibCallback):
         source = result.get("env_runners", {})
 
         # Si es evaluación, a veces está en 'evaluation'
-        if "evaluation" in result:
-            source = result["evaluation"].get("env_runners", source)
+        if (
+            "evaluation" not in result
+            or self.training_iteration % self.save_frequency != 0
+        ):
+            # source = result["evaluation"].get("env_runners", source)
+            return
 
         row_data = {
             "training_iteration": training_iteration,

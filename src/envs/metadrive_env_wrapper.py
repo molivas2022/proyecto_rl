@@ -28,7 +28,9 @@ class MetadriveEnvWrapper(MultiAgentEnv):
         # Clase base del entorno
         BaseEnvClass = config_copy.pop("base_env_class", None)
         if BaseEnvClass is None:
-            raise ValueError("config['base_env_class'] es obligatorio para MetadriveEnvWrapper")
+            raise ValueError(
+                "config['base_env_class'] es obligatorio para MetadriveEnvWrapper"
+            )
 
         # Flags de normalización
         normalize_reward = config_copy.pop("normalize_reward", False)
@@ -36,7 +38,9 @@ class MetadriveEnvWrapper(MultiAgentEnv):
 
         # ---------- SEEDS (tu lógica + flag de compatibilidad) ----------
         # NUEVO: bandera para saber si debemos usar la lógica de seeds o no
-        self._use_seed_cycle = ("start_seed" in config_copy) and ("num_scenarios" in config_copy)
+        self._use_seed_cycle = ("start_seed" in config_copy) and (
+            "num_scenarios" in config_copy
+        )
 
         if self._use_seed_cycle:
             # Modo "nuevo": usamos el ciclo de seeds
@@ -105,10 +109,10 @@ class MetadriveEnvWrapper(MultiAgentEnv):
             # MODO NUEVO (con seeds del YAML)
             next_seed = self._next_seed(seed)
 
-            print(
-                f"[Wrapper] reset with seed={next_seed}, "
-                f"range=[{self.start_seed}, {self.start_seed + self.num_scenarios})"
-            )
+            # print(
+            #    f"[Wrapper] reset with seed={next_seed}, "
+            #    f"range=[{self.start_seed}, {self.start_seed + self.num_scenarios})"
+            # )
 
             # Si el wrapper de normalización no acepta seed en reset, esto lo maneja el try/except
             try:
@@ -140,7 +144,9 @@ class MetadriveEnvWrapper(MultiAgentEnv):
             infos_dict,
         ) = self.env.step(action_dict)
 
-        if terminateds_dict.get("__all__", False) or truncateds_dict.get("__all__", False):
+        if terminateds_dict.get("__all__", False) or truncateds_dict.get(
+            "__all__", False
+        ):
             self.agents = []
         else:
             self.agents = list(obs_dict.keys())
