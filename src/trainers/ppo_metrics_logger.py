@@ -4,7 +4,7 @@ from ray.rllib.callbacks.callbacks import RLlibCallback
 from pprint import pprint
 
 
-# TODO: Agregar on_algo_end (creo que se debe llamar algo asi), por ahora simplemente puse frequencia de guardado 1.
+# TODO: Agregar on_algo_end (creo que se debe llamar algo asi), por ahora simplemente puse frequencia de guardado 0 mod numero de iteraciones
 
 
 class PPOMetricsLogger(RLlibCallback):
