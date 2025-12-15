@@ -8,6 +8,7 @@ from ray.rllib.algorithms.ppo import PPOConfig
 from ray.rllib.core.rl_module.multi_rl_module import MultiRLModuleSpec
 from ray.rllib.core.rl_module.rl_module import RLModuleSpec
 from ray.rllib.policy.policy import PolicySpec
+from ray.tune.logger import UnifiedLogger
 
 from src.envs import MetadriveEnvWrapper
 from src.utils import transfer_module_weights
@@ -226,7 +227,16 @@ class IPPOTrainer:
 
         print("Building PPO Algorithm...")
         algo_config = self._build_algorithm_config()
-        algo = algo_config.build()
+
+        # Para tensorboard
+        def logger_creator(config):
+            log_dir = self.exp_dir / "tensorboard"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            return UnifiedLogger(config, str(log_dir), loggers=None)
+
+
+
+        algo = algo_config.build(logger_creator=logger_creator)
 
         self._load_weights_if_needed(algo)
 

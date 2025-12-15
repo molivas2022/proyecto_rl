@@ -23,6 +23,7 @@ WORKDIR /workspace
 RUN pip install --no-cache-dir \
     numpy==1.26.3 \
     "ray[rllib]" \
+    tensorbaord \
     seaborn \
     gymnasium \
     PyYAML \
