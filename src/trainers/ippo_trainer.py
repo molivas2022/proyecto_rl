@@ -153,12 +153,9 @@ class IPPOTrainer:
                 grad_clip=hyperparams["grad_clip"],
             )
             .multi_agent(
-                policies=self.policies,
-                policy_mapping_fn=self.policy_mapping_fn
+                policies=self.policies, policy_mapping_fn=self.policy_mapping_fn
             )
-            .environment(env=MetadriveEnvWrapper,
-                         env_config=self.env_config
-                         )
+            .environment(env=MetadriveEnvWrapper, env_config=self.env_config)
             .framework("torch")
             .resources(num_gpus=1)
             .env_runners(
@@ -168,25 +165,28 @@ class IPPOTrainer:
             )
             .evaluation(
                 # Ejecutar evaluación cada X iteraciones de entrenamiento
-                evaluation_interval=self.exp_config["experiment"]["evaluation_interval"],
+                evaluation_interval=self.exp_config["experiment"][
+                    "evaluation_interval"
+                ],
                 # Cuántos episodios completos rodar en cada evaluación
-                evaluation_duration=self.exp_config["experiment"]["evaluation_duration"],
+                evaluation_duration=self.exp_config["experiment"][
+                    "evaluation_duration"
+                ],
                 evaluation_duration_unit="episodes",
-                
                 # 1 worker dedicado a evaluación (paralelo a los de training)
                 # con poca RAM/CPU, poner esto en 0
                 evaluation_num_env_runners=1,
-                
                 # Greedy
-                evaluation_config={
-                    "explore": False
-                })
+                evaluation_config={"explore": False},
+            )
             .callbacks(PPOMetricsLogger)
             .update_from_dict(
                 {
                     "callback_args": {
                         "exp_dir": self.exp_dir,
-                        "log_save_frequency": self.exp_config["experiment"]["log_save_freq"],
+                        "log_save_frequency": self.exp_config["experiment"][
+                            "log_save_freq"
+                        ],
                     }
                 }
             )
