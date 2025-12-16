@@ -1,6 +1,5 @@
 import yaml
 import warnings
-import torch
 from pathlib import Path
 
 from metadrive import (
@@ -20,10 +19,11 @@ from src.models import MetaDriveCNN, MetaDriveStackedCNN
 from src.envs import StackedLidarObservation
 from src.trainers import IPPOTrainer, MAPPOTrainer
 
-ALGORITHMS = {
-    "IPPO": IPPOTrainer,
-    "MAPPO": MAPPOTrainer
-}
+from ray.rllib.utils.framework import try_import_torch
+
+torch, nn = try_import_torch()
+
+ALGORITHMS = {"IPPO": IPPOTrainer, "MAPPO": MAPPOTrainer}
 
 OBSERVATIONS = {
     "StackedLidar": StackedLidarObservation,
@@ -161,4 +161,8 @@ def run_experiments():
 
 
 if __name__ == "__main__":
+    if torch.cuda.is_available():
+        print("Cuda available.")
+    else:
+        print("Cuda not available.")
     run_experiments()
