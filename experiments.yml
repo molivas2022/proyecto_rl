@@ -4,8 +4,8 @@
     checkpoint_freq: 20
     start_from_checkpoint: False
     log_save_freq: 10
-    evaluation_interval: 3       # cada cuantos episodios hacer evaluación
-    evaluation_duration: 1       # cuantos experimentos promediar
+    evaluation_interval: 10       # cada cuantos episodios hacer evaluación
+    evaluation_duration: 3       # cuantos experimentos promediar
   environment:
     type: "PGMA"
     horizon: 1000
@@ -50,8 +50,8 @@
     checkpoint_freq: 20
     start_from_checkpoint: False
     log_save_freq: 10
-    evaluation_interval: 3       # cada cuantos episodios hacer evaluación
-    evaluation_duration: 1       # cuantos experimentos promediar
+    evaluation_interval: 10       # cada cuantos episodios hacer evaluación
+    evaluation_duration: 3       # cuantos experimentos promediar
   environment:
     type: "PGMA"
     horizon: 1000
@@ -79,7 +79,7 @@
     policy_type: "MLP"  # en mapo esto es siempre MLP
   hyperparameters:
     learning_rate: [[0, 0.001], [1_250_000, 0.0001]]
-    n_epochs: 1000
+    n_epochs: 500
     gamma: 0.995
     clip_param: 0.2
     lambda: 0.95
@@ -96,8 +96,8 @@
     checkpoint_freq: 20
     start_from_checkpoint: False
     log_save_freq: 10
-    evaluation_interval: 3       # cada cuantos episodios hacer evaluación
-    evaluation_duration: 1       # cuantos experimentos promediar
+    evaluation_interval: 10       # cada cuantos episodios hacer evaluación
+    evaluation_duration: 3       # cuantos experimentos promediar
   environment:
     type: "PGMA"
     horizon: 1000
@@ -125,7 +125,7 @@
     policy_type: "MLP"  # en mapo esto es siempre MLP
   hyperparameters:
     learning_rate: [[0, 0.001], [1_250_000, 0.0001]]
-    n_epochs: 1000
+    n_epochs: 500
     gamma: 0.995
     clip_param: 0.2
     lambda: 0.95

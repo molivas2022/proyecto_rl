@@ -49,8 +49,14 @@ RUN printf '%s\n' \
 # 6. Descarga de Assets de MetaDrive
 RUN python -m metadrive.pull_asset
 
-# 7. Copiamos código
+# Copy the simplified entrypoint
+COPY entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# Copy your code (as you already had)
 COPY . /app
 
-# 8. Comando de inicio
-CMD ["python", "train.py"]
+# Open the port for TensorBoard
+EXPOSE 6006
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

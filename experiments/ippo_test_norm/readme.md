@@ -1,1 +1,0 @@
-El propósito de este experimento fue verificar la eficacia de normalizas las recompensas en un etorno de 10 agentes, utilizando mapas generados proceduralmente.
