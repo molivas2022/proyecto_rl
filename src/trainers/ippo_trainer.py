@@ -50,23 +50,28 @@ class IPPOTrainer:
             "traffic_density": env_params["traffic_density"],
             "agent_observation": self.exp_config["agent"]["observation"],
             "normalize_reward": env_params.get("normalize_reward", False),
-
             # --- OPCIONALES (solo se añaden si existen en el YAML) ---
-            **({"start_seed": env_params["start_seed"]} 
-            if "start_seed" in env_params else {}),
-
-            **({"num_scenarios": env_params["num_scenarios"]} 
-            if "num_scenarios" in env_params else {}),
-
-            **({"map": env_params["map"]} 
-            if "map" in env_params else {}),
-
-            **({"test_start_seed": env_params["test_start_seed"]} 
-            if "test_start_seed" in env_params else {}),
-
-            **({"test_num_scenarios": env_params["test_num_scenarios"]} 
-            if "test_num_scenarios" in env_params else {}),
-
+            **(
+                {"start_seed": env_params["start_seed"]}
+                if "start_seed" in env_params
+                else {}
+            ),
+            **(
+                {"num_scenarios": env_params["num_scenarios"]}
+                if "num_scenarios" in env_params
+                else {}
+            ),
+            **({"map": env_params["map"]} if "map" in env_params else {}),
+            **(
+                {"test_start_seed": env_params["test_start_seed"]}
+                if "test_start_seed" in env_params
+                else {}
+            ),
+            **(
+                {"test_num_scenarios": env_params["test_num_scenarios"]}
+                if "test_num_scenarios" in env_params
+                else {}
+            ),
             # --- SIGUE TODO TAL CUAL ---
             "gamma": hyperparameters["gamma"],
             # Rewards
@@ -77,7 +82,6 @@ class IPPOTrainer:
             "speed_reward": env_params.get("speed_reward", 0.1),
             "success_reward": env_params.get("success_reward", 10.0),
         }
-
 
     @staticmethod
     def policy_mapping_fn(agent_id: str, episode: Any = None, **kwargs) -> str:
@@ -162,9 +166,16 @@ class IPPOTrainer:
             .resources(num_gpus=1)
             .env_runners(
                 num_env_runners=self.exp_config["environment"]["num_env_runners"],
+                num_envs_per_env_runner=self.exp_config["environment"][
+                    "num_envs_per_env_runner"
+                ],
+                num_cpus_per_env_runner=self.exp_config["environment"][
+                    "num_cpus_per_env_runner"
+                ],  # vCPU
                 # Prefiero no cambiar esto (por ahora) la verdad
                 # rollout_fragment_length=self.exp_config["hyperparameters"]["rollout_fragment_length"],
             )
+            .learners(num_learners=1, num_gpus_per_learner=1)
             .evaluation(
                 # Ejecutar evaluación cada X iteraciones de entrenamiento
                 evaluation_interval=self.exp_config["experiment"][
@@ -185,9 +196,11 @@ class IPPOTrainer:
             .update_from_dict(
                 {
                     "callback_args": {
-                        "PPOMetricsLogger":{
-                        "exp_dir": self.exp_dir,
-                        "log_save_frequency": self.exp_config["experiment"]["log_save_freq"],
+                        "PPOMetricsLogger": {
+                            "exp_dir": self.exp_dir,
+                            "log_save_frequency": self.exp_config["experiment"][
+                                "log_save_freq"
+                            ],
                         }
                     }
                 }
@@ -233,8 +246,6 @@ class IPPOTrainer:
             log_dir = self.exp_dir / "tensorboard"
             log_dir.mkdir(parents=True, exist_ok=True)
             return UnifiedLogger(config, str(log_dir), loggers=None)
-
-
 
         algo = algo_config.build(logger_creator=logger_creator)
 

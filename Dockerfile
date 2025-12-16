@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # 4. Configurar entorno de trabajo
-WORKDIR /workspace
+WORKDIR /app
 
 # 5. Instalamos tus librerías de Python
 # 5. Instalamos tus librerías de Python (versiones fijadas según conda)
@@ -49,8 +49,8 @@ RUN printf '%s\n' \
 # 6. Descarga de Assets de MetaDrive
 RUN python -m metadrive.pull_asset
 
-# 7. Copiamos tu código
-COPY . /workspace
+# 7. Copiamos código
+COPY . /app
 
 # 8. Comando de inicio
 CMD ["python", "train.py"]
