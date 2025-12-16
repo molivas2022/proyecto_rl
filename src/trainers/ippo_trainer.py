@@ -177,19 +177,14 @@ class IPPOTrainer:
             )
             .learners(num_learners=1, num_gpus_per_learner=1)
             .evaluation(
-                # Ejecutar evaluación cada X iteraciones de entrenamiento
-                evaluation_interval=self.exp_config["experiment"][
-                    "evaluation_interval"
-                ],
-                # Cuántos episodios completos rodar en cada evaluación
-                evaluation_duration=self.exp_config["experiment"][
-                    "evaluation_duration"
-                ],
+                evaluation_interval=self.exp_config["experiment"].get(
+                    "evaluation_interval", 50
+                ),
+                evaluation_duration=self.exp_config["experiment"].get(
+                    "evaluation_duration", 5
+                ),
                 evaluation_duration_unit="episodes",
-                # 1 worker dedicado a evaluación (paralelo a los de training)
-                # con poca RAM/CPU, poner esto en 0
                 evaluation_num_env_runners=1,
-                # Greedy
                 evaluation_config={"explore": False},
             )
             .callbacks(PPOMetricsLogger)
@@ -198,9 +193,9 @@ class IPPOTrainer:
                     "callback_args": {
                         "PPOMetricsLogger": {
                             "exp_dir": self.exp_dir,
-                            "log_save_frequency": self.exp_config["experiment"][
-                                "log_save_freq"
-                            ],
+                            "log_save_frequency": self.exp_config["experiment"].get(
+                                "log_save_freq", 100
+                            ),
                         }
                     }
                 }

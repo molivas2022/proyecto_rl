@@ -43,7 +43,11 @@ class CentralizedCallback(RLlibCallback):
         # We look for keys containing 'critic_encoder' or 'vf_head' based on your module definition
         # We take the first policy as a template to find the keys.
         template_weights = weights[policy_ids[0]]
-        critic_keys = [k for k in template_weights.keys() if "critic_encoder" in k or "vf_head" in k]
+        critic_keys = [
+            k
+            for k in template_weights.keys()
+            if "critic_encoder" in k or "vf_head" in k
+        ]
 
         if not critic_keys:
             print("Warning: No critic keys found to sync.")
@@ -60,7 +64,7 @@ class CentralizedCallback(RLlibCallback):
             avg_critic_weights[k] = total_weight / n_agents
 
         # 4. Create the update dictionary
-        # We must preserve the unique Actor weights for each agent, 
+        # We must preserve the unique Actor weights for each agent,
         # so we copy their existing weights and overwrite ONLY the critic.
         new_weights_dict = {}
 
@@ -76,7 +80,7 @@ class CentralizedCallback(RLlibCallback):
             new_weights_dict[pid] = agent_weights
 
         # 5. Set the weights back to the Learner
-        # The Learner will automatically broadcast these new weights to 
+        # The Learner will automatically broadcast these new weights to
         # EnvRunners (workers) at the start of the next iteration.
         algorithm.learner_group.set_weights(new_weights_dict)
 
@@ -84,80 +88,6 @@ class CentralizedCallback(RLlibCallback):
 
     def on_train_result(self, *, algorithm, metrics_logger, result, **kwargs):
         self._sync_critics(algorithm)
-#         training_iteration = result["training_iteration"]
-# 
-#         # 1. Steps totales
-#         total_steps = result.get("num_env_steps_sampled_lifetime")
-#         if total_steps is None:
-#             total_steps = result.get("env_runners", {}).get(
-#                 "num_env_steps_sampled_lifetime"
-#             )
-#         if total_steps is None:
-#             total_steps = 0
-# 
-#         policies = set(result["config"]["policies"].keys())
-#         policy_data = {}
-# 
-#         # 2. Learning Rate
-#         current_lr = 0.0
-#         learners = result.get("learners", {})
-#         if "policy_0" in learners:
-#             current_lr = learners["policy_0"].get(
-#                 "default_optimizer_learning_rate", 0.0
-#             )
-# 
-#         env_runners_metrics = result.get("env_runners", {})
-# 
-#         reward_raw_mean = env_runners_metrics.get("episode_return_raw", None)
-# 
-#         # Recompesas normalizadas
-#         episode_return_mean = env_runners_metrics.get("episode_return_mean", 0.0)
-#         num_policies = (
-#             len(result["config"]["policies"])
-#             if len(result["config"]["policies"]) > 0
-#             else 1
-#         )
-#         reward_mean = episode_return_mean / num_policies
-# 
-#         # No hay normalización, entonces reward_mean es en verdad reward_raw
-#         if reward_raw_mean == None:
-#             reward_raw_mean = reward_mean
-# 
-#         print(
-#             f"Iter: {training_iteration} | Steps: {total_steps} | "
-#             f"Rew(Norm): {reward_mean:.2f} | Rew(Raw): {reward_raw_mean:.2f} | LR: {current_lr:.2e}"
-#         )
-# 
-#         for policy, logs in learners.items():
-#             if policy in policies:
-#                 policy_data[policy] = logs
-# 
-#         self.update_reward_data(
-#             training_iteration, total_steps, reward_mean, reward_raw_mean, current_lr
-#         )
-#         self.update_policy_data(training_iteration, total_steps, policy_data)
-#         self.update_eval_data(total_steps, result)
-#         self.calls_since_last_save += 1
-#         self.save_data()
-
-#     def on_train_result(self, *, algorithm, metrics_logger, result, **kwargs):
-#         self._sync_critics(algorithm)
-# 
-#         training_iteration = result["training_iteration"]
-#         policies = set(result["config"]["policies"].keys())
-#         policy_data = {}
-# 
-#         reward_mean = result["env_runners"]["episode_return_mean"] / len(policies)
-#         print(f"Iteration {training_iteration} finished, with reward: {reward_mean}")
-# 
-#         for policy, logs in result["learners"].items():
-#             if policy in policies:
-#                 policy_data[policy] = logs
-# 
-#         self.update_reward_data(training_iteration, reward_mean)
-#         self.update_policy_data(training_iteration, policy_data)
-#         self.calls_since_last_save += 1
-#         self.save_data()
 
 
 # EXPERIMENT
@@ -181,17 +111,50 @@ class MAPPOTrainer:
         self.rl_module_spec = None
         self._initialize_spaces_and_specs()
 
-    def _build_env_config(self, env_class):
-        """Centraliza la configuración del entorno para MAPPO."""
+    def _build_env_config(self, env_class: Any) -> Dict[str, Any]:
+        """Centraliza la creación de la configuración del entorno."""
         env_params = self.exp_config["environment"]
-        # Nota: Ajusta si necesitas más parámetros específicos de MAPPO aquí
+        hyperparameters = self.exp_config["hyperparameters"]
+
         return {
             "base_env_class": env_class,
             "num_agents": env_params["num_agents"],
             "allow_respawn": env_params["allow_respawn"],
             "horizon": env_params["horizon"],
             "traffic_density": env_params["traffic_density"],
-            # Asumo que MAPPOEnvWrapper maneja internamente la creación del estado global
+            "agent_observation": self.exp_config["agent"]["observation"],
+            "normalize_reward": env_params.get("normalize_reward", False),
+            # --- OPCIONALES (solo se añaden si existen en el YAML) ---
+            **(
+                {"start_seed": env_params["start_seed"]}
+                if "start_seed" in env_params
+                else {}
+            ),
+            **(
+                {"num_scenarios": env_params["num_scenarios"]}
+                if "num_scenarios" in env_params
+                else {}
+            ),
+            **({"map": env_params["map"]} if "map" in env_params else {}),
+            **(
+                {"test_start_seed": env_params["test_start_seed"]}
+                if "test_start_seed" in env_params
+                else {}
+            ),
+            **(
+                {"test_num_scenarios": env_params["test_num_scenarios"]}
+                if "test_num_scenarios" in env_params
+                else {}
+            ),
+            # --- SIGUE TODO TAL CUAL ---
+            "gamma": hyperparameters["gamma"],
+            # Rewards
+            "crash_vehicle_penalty": env_params.get("crash_vehicle_penalty", 5.0),
+            "crash_object_penalty": env_params.get("crash_object_penalty", 5.0),
+            "out_of_road_penalty": env_params.get("out_of_road_penalty", 5.0),
+            "driving_reward": env_params.get("driving_reward", 1.0),
+            "speed_reward": env_params.get("speed_reward", 0.1),
+            "success_reward": env_params.get("success_reward", 10.0),
         }
 
     @staticmethod
@@ -219,9 +182,7 @@ class MAPPOTrainer:
                 # Definición de Policies
                 if policy_id not in self.policies:
                     self.policies[policy_id] = PolicySpec(
-                        observation_space=obs_space,
-                        action_space=act_space,
-                        config={}
+                        observation_space=obs_space, action_space=act_space, config={}
                     )
 
                 # Definición de RLModules (Específico MAPPO)
@@ -260,23 +221,32 @@ class MAPPOTrainer:
                 grad_clip=hyperparams["grad_clip"],
             )
             .multi_agent(
-                policies=self.policies,
-                policy_mapping_fn=self.policy_mapping_fn
+                policies=self.policies, policy_mapping_fn=self.policy_mapping_fn
             )
-            .environment(
-                env=MAPPOEnvWrapper,
-                env_config=self.env_config
-            )
+            .environment(env=MAPPOEnvWrapper, env_config=self.env_config)
             .framework("torch")
             .resources(num_gpus=1)
             .env_runners(
                 num_env_runners=self.exp_config["environment"]["num_env_runners"],
+                num_envs_per_env_runner=self.exp_config["environment"][
+                    "num_envs_per_env_runner"
+                ],
+                num_cpus_per_env_runner=self.exp_config["environment"][
+                    "num_cpus_per_env_runner"
+                ],  # vCPU
+                # Prefiero no cambiar esto (por ahora) la verdad
+                # rollout_fragment_length=self.exp_config["hyperparameters"]["rollout_fragment_length"],
             )
+            .learners(num_learners=1, num_gpus_per_learner=1)
             # Reincorporo la lógica de evaluación que tenías en IPPO
             # Es inconsistente tenerla en uno y no en el otro si es para comparar.
             .evaluation(
-                evaluation_interval=self.exp_config["experiment"].get("evaluation_interval", 50),
-                evaluation_duration=self.exp_config["experiment"].get("evaluation_duration", 5),
+                evaluation_interval=self.exp_config["experiment"].get(
+                    "evaluation_interval", 50
+                ),
+                evaluation_duration=self.exp_config["experiment"].get(
+                    "evaluation_duration", 5
+                ),
                 evaluation_duration_unit="episodes",
                 evaluation_num_env_runners=1,
                 evaluation_config={"explore": False},
@@ -285,9 +255,11 @@ class MAPPOTrainer:
             .update_from_dict(
                 {
                     "callback_args": {
-                        "PPOMetricsLogger":{
-                        "exp_dir": self.exp_dir,
-                        "log_save_frequency": self.exp_config["experiment"].get("log_save_freq", 100),
+                        "PPOMetricsLogger": {
+                            "exp_dir": self.exp_dir,
+                            "log_save_frequency": self.exp_config["experiment"].get(
+                                "log_save_freq", 100
+                            ),
                         }
                     }
                 }
