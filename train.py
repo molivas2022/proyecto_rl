@@ -16,7 +16,7 @@ from metadrive.obs.state_obs import LidarStateObservation
 
 # Imports del proyecto
 # from src.utils import generate_gif
-from src.models import MetaDriveCNN, MetaDriveStackedCNN
+from src.models import IPPOCNN, MetaDriveStackedCNN, MAPPOCNN, MAPPOMLP
 from src.envs import StackedLidarObservation
 from src.trainers import IPPOTrainer, MAPPOTrainer
 
@@ -30,9 +30,11 @@ OBSERVATIONS = {
 }
 
 MODELS = {
-    "CNN": MetaDriveCNN,
+    "IPPOCNN": IPPOCNN,
     "StackedCNN": MetaDriveStackedCNN,
-    "MLP": PPOTorchRLModule,
+    "IPPOMLP": PPOTorchRLModule,
+    "MAPPOCNN": MAPPOCNN,
+    "MAPPOMLP": MAPPOMLP,
 }
 
 ENVS = {

@@ -1,4 +1,4 @@
-- experiment_name: "ippo_norm_cnn"
+- experiment_name: "ippo_norm_cnn_const_lr"
   experiment: 
     #seed: 100
     checkpoint_freq: 20
@@ -30,9 +30,9 @@
   agent:
     algorithm: "IPPO"
     observation: "Lidar"
-    policy_type: "CNN"  # en mapo esto es siempre MLP
+    policy_type: "IPPOCNN"  # en mapo esto es siempre MLP
   hyperparameters:
-    learning_rate: [[0, 0.001], [1_250_000, 0.0001]]
+    learning_rate: 0.001
     n_epochs: 500
     gamma: 0.995
     clip_param: 0.2
@@ -44,53 +44,7 @@
     vf_clip_param: 100.0 # Basicamente no clipping
     grad_clip: 0.5
 
-- experiment_name: "ippo_norm_mlp"
-  experiment: 
-    #seed: 100
-    checkpoint_freq: 20
-    start_from_checkpoint: False
-    log_save_freq: 10
-    evaluation_interval: 10       # cada cuantos episodios hacer evaluación
-    evaluation_duration: 3       # cuantos experimentos promediar
-  environment:
-    type: "PGMA"
-    horizon: 1000
-    num_agents: 10
-    normalize_reward: True
-    num_env_runners: 24
-    num_envs_per_env_runner: 1 # solo puede ser 1
-    num_cpus_per_env_runner: 1
-    allow_respawn: False
-    traffic_density: 0
-    # Estas son necesarias para el random
-    start_seed: 42 
-    num_scenarios: 1000
-    map: 4
-    # Rewards
-    crash_vehicle_penalty: 10.0
-    crash_object_penalty: 10.0
-    out_of_road_penalty: 10.0
-    speed_reward: 0.1
-    driving_reward: 1.0
-    success_reward: 20.0
-  agent:
-    algorithm: "IPPO"
-    observation: "Lidar"
-    policy_type: "MLP"  # en mapo esto es siempre MLP
-  hyperparameters:
-    learning_rate: [[0, 0.001], [1_250_000, 0.0001]]
-    n_epochs: 500
-    gamma: 0.995
-    clip_param: 0.2
-    lambda: 0.95
-    entropy_coeff: [[0, 0.001], [1_250_000, 0.0001]]
-    rollout_fragment_length: 256
-    minibatch_size: 512
-    train_batch_size: 4096
-    vf_clip_param: 100.0 # Basicamente no clipping
-    grad_clip: 0.5
-
-- experiment_name: "mippo_norm_mlp"
+- experiment_name: "mippo_norm_cnn_const_lr"
   experiment: 
     #seed: 100
     checkpoint_freq: 20
@@ -122,9 +76,9 @@
   agent:
     algorithm: "MAPPO"
     observation: "Lidar"
-    policy_type: "MLP"  # en mapo esto es siempre MLP
+    policy_type: "MAPPOCNN"  # en mapo esto es siempre MLP
   hyperparameters:
-    learning_rate: [[0, 0.001], [1_250_000, 0.0001]]
+    learning_rate: 0.001
     n_epochs: 500
     gamma: 0.995
     clip_param: 0.2
