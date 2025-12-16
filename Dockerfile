@@ -7,7 +7,6 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV PANDA_PRC_DIR="/etc/panda3d"
 
 # 3. Instalamos SOLO lo que le falta a la imagen de RunPod
-# MetaDrive necesita libgl1 (OpenGL) y librerías gráficas básicas
 RUN apt-get update && apt-get install -y \
     libgl1 \
     libglib2.0-0 \
@@ -19,17 +18,31 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /workspace
 
 # 5. Instalamos tus librerías de Python
-# NOTA: no instalamos torch aquí, porque la imagen base ya lo tiene.
 RUN pip install --no-cache-dir \
     numpy==1.26.3 \
     "ray[rllib]" \
-    tensorbaord \
+    tensorboard \
     seaborn \
     gymnasium \
     PyYAML \
     pydantic \
     GPUtil \
     git+https://github.com/metadriverse/metadrive.git@85e5dadc6c7436d324348f6e3d8f8e680c06b4db
+
+# 5.5 Parchear el bug del logger de MetaDrive (Known Pipes)
+RUN printf '%s\n' \
+"import pathlib" \
+"import metadrive.engine.core.engine_core as ec" \
+"" \
+"p = pathlib.Path(ec.__file__)" \
+"t = p.read_text()" \
+"old = 'logger.info(\"Known Pipes: {}\".format(*GraphicsPipeSelection.getGlobalPtr().getPipeTypes()))'" \
+"new = 'logger.info(\"Known Pipes: {}\".format(GraphicsPipeSelection.getGlobalPtr().getPipeTypes()))'" \
+"print('Patching', p)" \
+"p.write_text(t.replace(old, new))" \
+> /tmp/patch_metadrive.py \
+ && python /tmp/patch_metadrive.py \
+ && rm /tmp/patch_metadrive.py
 
 # 6. Descarga de Assets de MetaDrive
 RUN python -m metadrive.pull_asset
