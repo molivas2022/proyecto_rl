@@ -13,6 +13,7 @@ from ray.tune.logger import UnifiedLogger
 from src.envs import MetadriveEnvWrapper
 from src.utils import transfer_module_weights
 from .ppo_metrics_logger import PPOMetricsLogger
+import logging
 
 
 class IPPOTrainer:
@@ -231,7 +232,11 @@ class IPPOTrainer:
     def train(self) -> Path:
         """Ejecuta el bucle de entrenamiento."""
         if not ray.is_initialized():
-            ray.init(ignore_reinit_error=True)
+            ray.init(
+                log_to_driver=False,
+                ignore_reinit_error=True,
+                logging_level=logging.ERROR,
+            )
 
         print("Building PPO Algorithm...")
         algo_config = self._build_algorithm_config()

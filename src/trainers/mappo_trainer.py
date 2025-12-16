@@ -14,6 +14,7 @@ from ray.rllib.callbacks.callbacks import RLlibCallback
 
 from src.envs.mappo_wrapper import MAPPOEnvWrapper
 from src.models.mappo_model import MAPPOTorchRLModule
+import logging
 
 
 # TODO: Mover despues del refactor
@@ -270,7 +271,11 @@ class MAPPOTrainer:
 
     def train(self) -> Path:
         if not ray.is_initialized():
-            ray.init(ignore_reinit_error=True)
+            ray.init(
+                log_to_driver=False,
+                ignore_reinit_error=True,
+                logging_level=logging.ERROR,
+            )
 
         print("Building MAPPO Algorithm...")
         algo_config = self._build_algorithm_config()
