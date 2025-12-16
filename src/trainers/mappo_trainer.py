@@ -8,6 +8,7 @@ from ray.rllib.policy.policy import PolicySpec
 import re
 from ray.rllib.core.rl_module.rl_module import RLModuleSpec
 from ray.rllib.core.rl_module.multi_rl_module import MultiRLModuleSpec
+from ray.tune.logger import UnifiedLogger
 
 from .ppo_metrics_logger import PPOMetricsLogger
 from ray.rllib.callbacks.callbacks import RLlibCallback
@@ -279,7 +280,14 @@ class MAPPOTrainer:
 
         print("Building MAPPO Algorithm...")
         algo_config = self._build_algorithm_config()
-        algo = algo_config.build()
+
+        # Para tensorboard
+        def logger_creator(config):
+            log_dir = self.exp_dir / "tensorboard"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            return UnifiedLogger(config, str(log_dir), loggers=None)
+
+        algo = algo_config.build(logger_creator=logger_creator)
 
         # Checkpoint inicial
         save_dir = self.exp_dir / "checkpoints"
