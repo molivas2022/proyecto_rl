@@ -202,7 +202,7 @@ class MAPPOTrainer:
 
         finally:
             if hasattr(temp_env, "env"):
-                temp_env.env.close()
+                temp_env.env.env.close()
 
     def _build_algorithm_config(self):
         hyperparams = self.exp_config["hyperparameters"]
