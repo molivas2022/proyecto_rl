@@ -120,7 +120,6 @@ def run_experiments():
 
         # Lógica para determinar use_cnn dinámicamente basado en el string original
         use_cnn_flag = "CNN" in policy_str
-
         # Guardamos la config PURA (con strings) antes de mutarla con clases
         # (porque YAML no puede serializar clases de Python fácilmente)
         # Nota: Si quieres guardar lo que ejecutaste, haz esto ANTES del paso 3.
