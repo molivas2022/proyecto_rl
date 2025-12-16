@@ -1,3 +1,4 @@
+import torch
 import yaml
 import warnings
 from pathlib import Path
@@ -20,8 +21,6 @@ from src.envs import StackedLidarObservation
 from src.trainers import IPPOTrainer, MAPPOTrainer
 
 from ray.rllib.utils.framework import try_import_torch
-
-torch, nn = try_import_torch()
 
 ALGORITHMS = {"IPPO": IPPOTrainer, "MAPPO": MAPPOTrainer}
 
