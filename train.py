@@ -151,6 +151,7 @@ def run_experiments():
                     exp_config=exp_config,
                     env_class=EnvClass,
                     exp_dir=CURRENT_EXP_DIR,
+                    use_cnn=use_cnn_flag,
                 )
 
             _ = exp.train()

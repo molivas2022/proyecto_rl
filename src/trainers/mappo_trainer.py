@@ -101,9 +101,11 @@ class MAPPOTrainer:
         exp_config,
         env_class,
         exp_dir,
+        use_cnn: bool = False,
     ):
         self.exp_config = exp_config.copy()
         self.exp_dir = exp_dir
+        self.use_cnn = use_cnn
 
         # Configuración del entorno
         self.env_config = self._build_env_config(env_class)

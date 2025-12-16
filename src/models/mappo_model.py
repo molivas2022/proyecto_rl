@@ -198,14 +198,14 @@ class MAPPOCNN(TorchRLModule, ValueFunctionAPI):
         # -----------------------------------------------------------
         # Initialization
         # -----------------------------------------------------------
-        self.actor_cnn.apply(init_weights_xavier_bias_zero)
-        self.actor_mlp.apply(init_weights_xavier_bias_zero)
+        self.actor_cnn.apply(init_weights)
+        self.actor_mlp.apply(init_weights)
 
         # Initialize Heads
         nn.init.xavier_uniform_(self.pi_head.weight)
         nn.init.zeros_(self.pi_head.bias)
 
-        self.critic_encoder.apply(init_weights_xavier_bias_zero)
+        self.critic_encoder.apply(init_weights)
         nn.init.xavier_uniform_(self.vf_head.weight)
         nn.init.zeros_(self.vf_head.bias)
 
