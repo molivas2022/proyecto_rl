@@ -16,7 +16,7 @@ from ray.rllib.callbacks.callbacks import RLlibCallback
 from src.envs.mappo_wrapper import MAPPOEnvWrapper
 from src.models.mappo_model import MAPPOTorchRLModule
 import logging
-
+import torch
 
 # TODO: Mover despues del refactor
 # TODO: Agregar on_algo_end (creo que se debe llamar algo asi), por ahora simplemente puse frequencia de guardado 1.
@@ -208,6 +208,7 @@ class MAPPOTrainer:
 
     def _build_algorithm_config(self):
         hyperparams = self.exp_config["hyperparameters"]
+        num_gpus = 1 if torch.cuda.is_available() else 0
 
         config = (
             PPOConfig()
@@ -239,7 +240,7 @@ class MAPPOTrainer:
                 # Prefiero no cambiar esto (por ahora) la verdad
                 # rollout_fragment_length=self.exp_config["hyperparameters"]["rollout_fragment_length"],
             )
-            .learners(num_learners=1, num_gpus_per_learner=1)
+            .learners(num_learners=1, num_gpus_per_learner=num_gpus)
             # Reincorporo la lógica de evaluación que tenías en IPPO
             # Es inconsistente tenerla en uno y no en el otro si es para comparar.
             .evaluation(
@@ -273,9 +274,9 @@ class MAPPOTrainer:
     def train(self) -> Path:
         if not ray.is_initialized():
             ray.init(
-                log_to_driver=False,
+                # log_to_driver=False,
                 ignore_reinit_error=True,
-                logging_level=logging.ERROR,
+                # logging_level=logging.ERROR,
             )
 
         print("Building MAPPO Algorithm...")

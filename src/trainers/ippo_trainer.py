@@ -14,6 +14,7 @@ from src.envs import MetadriveEnvWrapper
 from src.utils import transfer_module_weights
 from .ppo_metrics_logger import PPOMetricsLogger
 import logging
+import torch
 
 
 class IPPOTrainer:
@@ -142,6 +143,7 @@ class IPPOTrainer:
     def _build_algorithm_config(self) -> PPOConfig:
         """Construye y retorna el objeto PPOConfig."""
         hyperparams = self.exp_config["hyperparameters"]
+        num_gpus = 1 if torch.cuda.is_available() else 0
 
         config = (
             PPOConfig()
@@ -176,7 +178,7 @@ class IPPOTrainer:
                 # Prefiero no cambiar esto (por ahora) la verdad
                 # rollout_fragment_length=self.exp_config["hyperparameters"]["rollout_fragment_length"],
             )
-            .learners(num_learners=1, num_gpus_per_learner=1)
+            .learners(num_learners=1, num_gpus_per_learner=num_gpus)
             .evaluation(
                 evaluation_interval=self.exp_config["experiment"].get(
                     "evaluation_interval", 50
@@ -233,9 +235,9 @@ class IPPOTrainer:
         """Ejecuta el bucle de entrenamiento."""
         if not ray.is_initialized():
             ray.init(
-                log_to_driver=False,
+                # log_to_driver=False,
                 ignore_reinit_error=True,
-                logging_level=logging.ERROR,
+                # logging_level=logging.ERROR,
             )
 
         print("Building PPO Algorithm...")
@@ -248,6 +250,8 @@ class IPPOTrainer:
             return UnifiedLogger(config, str(log_dir), loggers=None)
 
         algo = algo_config.build(logger_creator=logger_creator)
+
+        print("Finished building PPO Algorithm...")
 
         self._load_weights_if_needed(algo)
 
