@@ -43,15 +43,15 @@ def generate_gif(envclass, envconfig, modelpath, savepath, title):
 
 
 if __name__ == "__main__":
-    exp_dir = Path.cwd() / "experiments" / "ippo_test1"
-    modelpath = exp_dir / "checkpoints" / "120"
+    exp_dir = Path.cwd() / "experiments" / "ippo_norm_cnn"
+    modelpath = exp_dir / "checkpoints" / "500"
 
     for i in range(3):
         curr_seed = 57 + i
         generate_gif(
             envclass=MultiAgentIntersectionEnv,
             envconfig=dict(
-                num_agents=1,
+                num_agents=10,
                 random_lane_num=True,
                 random_spawn_lane_index=True,
                 traffic_density=0,
@@ -60,5 +60,5 @@ if __name__ == "__main__":
             ),
             modelpath=modelpath,
             savepath=str(exp_dir / f"example_{i}.gif"),
-            title="IPPO",
+            title="IPPO_NORM_CNN",
         )

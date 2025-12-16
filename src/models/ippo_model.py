@@ -30,22 +30,22 @@ torch, nn = try_import_torch()
 # de lados y lane, y 72 para el LIDAR. Luego, el vector tendría
 # 6 + 10 + 2 + 1 + 72 = 91 elementos
 # Verdaderamente solo nos interesa que los últimos 72 elementos sean PCD.
-class MetaDriveCNN(TorchRLModule, ValueFunctionAPI, TargetNetworkAPI):
+class IPPOCNN(TorchRLModule, ValueFunctionAPI, TargetNetworkAPI):
     """
     Módulo de CNN Hibrida (1D) + MLP para MetaDrice con una única observación
     Lidar (sin stack)
     """
 
     def __init__(
-            self,
-            *,
-            observation_space: Optional[gym.Space],
-            action_space: Optional[gym.Space],
-            model_config: Optional[Union[dict, DefaultModelConfig]],
-            inference_only: Optional[bool] = None,
-            learner_only: bool = False,
-            catalog_class=None,
-            **kwargs,
+        self,
+        *,
+        observation_space: Optional[gym.Space],
+        action_space: Optional[gym.Space],
+        model_config: Optional[Union[dict, DefaultModelConfig]],
+        inference_only: Optional[bool] = None,
+        learner_only: bool = False,
+        catalog_class=None,
+        **kwargs,
     ):
         # 1. Llamamos al constructor padre PRIMERO con todos los kwargs.
         # Esto ejecuta RLModule.__init__ (que llama a setup() vacío)
@@ -111,8 +111,8 @@ class MetaDriveCNN(TorchRLModule, ValueFunctionAPI, TargetNetworkAPI):
         """
         Computa los embeddings compartidos del CNN + MLP
         """
-        non_lidar_feats = obs[:, 0: self.non_lidar_dim]
-        lidar_feats = obs[:, self.non_lidar_dim:]
+        non_lidar_feats = obs[:, 0 : self.non_lidar_dim]
+        lidar_feats = obs[:, self.non_lidar_dim :]
         lidar_input = lidar_feats.unsqueeze(1)
 
         cnn_output = self._base_cnn_stack(lidar_input)

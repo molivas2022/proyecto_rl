@@ -1,9 +1,9 @@
-
-from .metadrive_cnn import MetaDriveCNN
+from .ippo_model import IPPOCNN
 from .metadrive_stacked_cnn import MetaDriveStackedCNN
-from .mappo_model import MAPPOTorchRLModule
+from .mappo_model import MAPPOMLP
 
-__all__ = ["MetaDriveCNN",
-           "MetaDriveStackedCNN",
-           "MAPPOTorchRLModule",
-           ]
+__all__ = [
+    "IPPOCNN",
+    "MetaDriveStackedCNN",
+    "MAPPOMLP",
+]

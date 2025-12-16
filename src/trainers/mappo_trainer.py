@@ -8,14 +8,15 @@ from ray.rllib.policy.policy import PolicySpec
 import re
 from ray.rllib.core.rl_module.rl_module import RLModuleSpec
 from ray.rllib.core.rl_module.multi_rl_module import MultiRLModuleSpec
+from ray.tune.logger import UnifiedLogger
 
 from .ppo_metrics_logger import PPOMetricsLogger
 from ray.rllib.callbacks.callbacks import RLlibCallback
 
 from src.envs.mappo_wrapper import MAPPOEnvWrapper
-from src.models.mappo_model import MAPPOTorchRLModule
+from src.models.mappo_model import MAPPOMLP
 import logging
-
+import torch
 
 # TODO: Mover despues del refactor
 # TODO: Agregar on_algo_end (creo que se debe llamar algo asi), por ahora simplemente puse frequencia de guardado 1.
@@ -188,10 +189,10 @@ class MAPPOTrainer:
 
                 # Definición de RLModules (Específico MAPPO)
                 if policy_id not in rl_module_specs_dict:
-                    model_config = {"hidden_dim": 256}
+                    model_config = {"hidden_dim": 256} if self.use_cnn else {}
 
                     rl_module_specs_dict[policy_id] = RLModuleSpec(
-                        module_class=MAPPOTorchRLModule,
+                        module_class=self.exp_config["agent"]["policy_type"],
                         observation_space=obs_space,
                         action_space=act_space,
                         model_config=model_config,
@@ -207,6 +208,7 @@ class MAPPOTrainer:
 
     def _build_algorithm_config(self):
         hyperparams = self.exp_config["hyperparameters"]
+        num_gpus = 1 if torch.cuda.is_available() else 0
 
         config = (
             PPOConfig()
@@ -238,7 +240,7 @@ class MAPPOTrainer:
                 # Prefiero no cambiar esto (por ahora) la verdad
                 # rollout_fragment_length=self.exp_config["hyperparameters"]["rollout_fragment_length"],
             )
-            .learners(num_learners=1, num_gpus_per_learner=1)
+            .learners(num_learners=1, num_gpus_per_learner=num_gpus)
             # Reincorporo la lógica de evaluación que tenías en IPPO
             # Es inconsistente tenerla en uno y no en el otro si es para comparar.
             .evaluation(
@@ -272,14 +274,21 @@ class MAPPOTrainer:
     def train(self) -> Path:
         if not ray.is_initialized():
             ray.init(
-                log_to_driver=False,
+                # log_to_driver=False,
                 ignore_reinit_error=True,
-                logging_level=logging.ERROR,
+                # logging_level=logging.ERROR,
             )
 
         print("Building MAPPO Algorithm...")
         algo_config = self._build_algorithm_config()
-        algo = algo_config.build()
+
+        # Para tensorboard
+        def logger_creator(config):
+            log_dir = self.exp_dir / "tensorboard"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            return UnifiedLogger(config, str(log_dir), loggers=None)
+
+        algo = algo_config.build(logger_creator=logger_creator)
 
         # Checkpoint inicial
         save_dir = self.exp_dir / "checkpoints"
