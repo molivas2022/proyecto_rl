@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     libx11-6 \
     git \
+    vim \
     && rm -rf /var/lib/apt/lists/*
 
 # 4. Configurar entorno de trabajo
