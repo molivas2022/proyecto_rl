@@ -18,16 +18,18 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /workspace
 
 # 5. Instalamos tus librerías de Python
+# 5. Instalamos tus librerías de Python (versiones fijadas según conda)
 RUN pip install --no-cache-dir \
-    numpy==1.26.3 \
-    "ray[rllib]" \
+    numpy==2.2.6 \
+    "ray[rllib]==2.51.1" \
     tensorboard \
-    seaborn \
-    gymnasium \
-    PyYAML \
+    seaborn==0.13.2 \
+    gymnasium==1.1.1 \
+    PyYAML==6.0.3 \
     pydantic \
     GPUtil \
     git+https://github.com/metadriverse/metadrive.git@85e5dadc6c7436d324348f6e3d8f8e680c06b4db
+
 
 # 5.5 Parchear el bug del logger de MetaDrive (Known Pipes)
 RUN printf '%s\n' \
