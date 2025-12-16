@@ -14,7 +14,7 @@ from .ppo_metrics_logger import PPOMetricsLogger
 from ray.rllib.callbacks.callbacks import RLlibCallback
 
 from src.envs.mappo_wrapper import MAPPOEnvWrapper
-from src.models.mappo_model import MAPPOTorchRLModule
+from src.models.mappo_model import MAPPOMLP
 import logging
 import torch
 
@@ -189,10 +189,10 @@ class MAPPOTrainer:
 
                 # Definición de RLModules (Específico MAPPO)
                 if policy_id not in rl_module_specs_dict:
-                    model_config = {"hidden_dim": 256}
+                    model_config = {"hidden_dim": 256} if self.use_cnn else {}
 
                     rl_module_specs_dict[policy_id] = RLModuleSpec(
-                        module_class=MAPPOTorchRLModule,
+                        module_class=self.exp_config["agent"]["policy_type"],
                         observation_space=obs_space,
                         action_space=act_space,
                         model_config=model_config,
