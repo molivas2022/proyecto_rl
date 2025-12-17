@@ -16,7 +16,7 @@ from metadrive.obs.state_obs import LidarStateObservation
 
 # Imports del proyecto
 # from src.utils import generate_gif
-from src.models import MetaDriveCNN, MetaDriveStackedCNN
+from src.models import IPPOCNN, MetaDriveStackedCNN, MAPPOCNN, MAPPOMLP
 from src.envs import StackedLidarObservation
 from src.trainers import IPPOTrainer, MAPPOTrainer
 
@@ -30,9 +30,11 @@ OBSERVATIONS = {
 }
 
 MODELS = {
-    "CNN": MetaDriveCNN,
+    "IPPOCNN": IPPOCNN,
     "StackedCNN": MetaDriveStackedCNN,
-    "MLP": PPOTorchRLModule,
+    "IPPOMLP": PPOTorchRLModule,
+    "MAPPOCNN": MAPPOCNN,
+    "MAPPOMLP": MAPPOMLP,
 }
 
 ENVS = {
@@ -118,7 +120,6 @@ def run_experiments():
 
         # Lógica para determinar use_cnn dinámicamente basado en el string original
         use_cnn_flag = "CNN" in policy_str
-
         # Guardamos la config PURA (con strings) antes de mutarla con clases
         # (porque YAML no puede serializar clases de Python fácilmente)
         # Nota: Si quieres guardar lo que ejecutaste, haz esto ANTES del paso 3.
@@ -149,6 +150,7 @@ def run_experiments():
                     exp_config=exp_config,
                     env_class=EnvClass,
                     exp_dir=CURRENT_EXP_DIR,
+                    use_cnn=use_cnn_flag,
                 )
 
             _ = exp.train()

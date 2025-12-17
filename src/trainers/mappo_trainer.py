@@ -1,6 +1,6 @@
 from pathlib import Path
 import copy
-from typing import Any, Dict
+from typing import Any, Dict, Callable
 
 import ray
 from ray.rllib.algorithms.ppo import PPOConfig
@@ -8,17 +8,35 @@ from ray.rllib.policy.policy import PolicySpec
 import re
 from ray.rllib.core.rl_module.rl_module import RLModuleSpec
 from ray.rllib.core.rl_module.multi_rl_module import MultiRLModuleSpec
+from ray.tune.logger import UnifiedLogger
 
 from .ppo_metrics_logger import PPOMetricsLogger
 from ray.rllib.callbacks.callbacks import RLlibCallback
 
 from src.envs.mappo_wrapper import MAPPOEnvWrapper
-from src.models.mappo_model import MAPPOTorchRLModule
-
+from src.models.mappo_model import MAPPOMLP
+import logging
+import torch
+import platform
 
 # TODO: Mover despues del refactor
 # TODO: Agregar on_algo_end (creo que se debe llamar algo asi), por ahora simplemente puse frequencia de guardado 1.
 # TODO: Dejar de medir métricas en base a training_iteration y hacerlo en base a time_steps
+
+
+# --- Patgon Factogy ---
+def get_policy_mapping_fn(parameter_sharing: bool) -> Callable:
+    def mapping_fn(agent_id, episode=None, **kwargs):
+        # If sharing is ON, everyone goes to policy_0
+        if parameter_sharing:
+            return "policy_0"
+
+        match = re.search(r"(\d+)", str(agent_id))
+        if match:
+            return f"policy_{match.group(1)}"
+        return f"policy_{agent_id}"
+
+    return mapping_fn
 
 
 class CentralizedCallback(RLlibCallback):
@@ -99,9 +117,12 @@ class MAPPOTrainer:
         exp_config,
         env_class,
         exp_dir,
+        use_cnn: bool = False,
     ):
         self.exp_config = exp_config.copy()
         self.exp_dir = exp_dir
+        self.use_cnn = use_cnn
+        self.parameter_sharing = self.exp_config["agent"].get("parameter_sharing", True)
 
         # Configuración del entorno
         self.env_config = self._build_env_config(env_class)
@@ -158,7 +179,15 @@ class MAPPOTrainer:
         }
 
     @staticmethod
-    def policy_mapping_fn(agent_id, episode=None, **kwargs):
+    def policy_mapping_fn(
+        agent_id: str, episode: Any = None, *, parameter_sharing: bool = False, **kwargs
+    ) -> str:
+        """
+        Mapea agentes a políticas. Debe ser estático o externo para serialización en Ray.
+        """
+        if parameter_sharing:
+            return "policy_0"
+
         match = re.search(r"(\d+)", str(agent_id))
         if match:
             return f"policy_{match.group(1)}"
@@ -167,34 +196,53 @@ class MAPPOTrainer:
     def _initialize_spaces_and_specs(self):
         """
         Instancia entorno temporal MAPPO para obtener espacios.
-        Crucial: El wrapper debe retornar un Dict space con keys 'obs' y 'state'.
         """
         temp_env = MAPPOEnvWrapper(self.env_config)
         try:
             temp_env.reset()
-
             rl_module_specs_dict = {}
+            model_config = {"hidden_dim": 256} if self.use_cnn else {}
 
-            for agent_id, obs_space in temp_env.observation_spaces.items():
-                act_space = temp_env.action_spaces[agent_id]
-                policy_id = self.policy_mapping_fn(agent_id, None)
+            if self.parameter_sharing:
+                # 1. Política compartida
+                first_agent_id = next(iter(temp_env.observation_spaces.keys()))
+                obs_space = temp_env.observation_spaces[first_agent_id]
+                act_space = temp_env.action_spaces[first_agent_id]
 
-                # Definición de Policies
-                if policy_id not in self.policies:
-                    self.policies[policy_id] = PolicySpec(
-                        observation_space=obs_space, action_space=act_space, config={}
-                    )
+                self.policies["policy_0"] = PolicySpec(
+                    observation_space=obs_space, action_space=act_space, config={}
+                )
 
-                # Definición de RLModules (Específico MAPPO)
-                if policy_id not in rl_module_specs_dict:
-                    model_config = {"hidden_dim": 256}
+                rl_module_specs_dict["policy_0"] = RLModuleSpec(
+                    module_class=self.exp_config["agent"]["policy_type"],
+                    observation_space=obs_space,
+                    action_space=act_space,
+                    model_config=model_config,
+                )
 
-                    rl_module_specs_dict[policy_id] = RLModuleSpec(
-                        module_class=MAPPOTorchRLModule,
-                        observation_space=obs_space,
-                        action_space=act_space,
-                        model_config=model_config,
-                    )
+            else:
+                # 2. Políticas independientes
+                current_mapping_fn = get_policy_mapping_fn(self.parameter_sharing)
+
+                for agent_id, obs_space in temp_env.observation_spaces.items():
+                    act_space = temp_env.action_spaces[agent_id]
+
+                    policy_id = current_mapping_fn(agent_id)
+
+                    if policy_id not in self.policies:
+                        self.policies[policy_id] = PolicySpec(
+                            observation_space=obs_space,
+                            action_space=act_space,
+                            config={},
+                        )
+
+                    if policy_id not in rl_module_specs_dict:
+                        rl_module_specs_dict[policy_id] = RLModuleSpec(
+                            module_class=self.exp_config["agent"]["policy_type"],
+                            observation_space=obs_space,
+                            action_space=act_space,
+                            model_config=model_config,
+                        )
 
             self.rl_module_spec = MultiRLModuleSpec(
                 rl_module_specs=rl_module_specs_dict
@@ -202,10 +250,18 @@ class MAPPOTrainer:
 
         finally:
             if hasattr(temp_env, "env"):
-                temp_env.env.close()
+                # MAPPO wrapper has .env pointing to MetadriveEnvWrapper
+                # MetadriveEnvWrapper has .env pointing to MetaDriveEnv
+                if hasattr(temp_env.env, "close"):
+                    temp_env.env.close()
+                elif hasattr(temp_env.env, "env") and hasattr(
+                    temp_env.env.env, "close"
+                ):
+                    temp_env.env.env.close()
 
     def _build_algorithm_config(self):
         hyperparams = self.exp_config["hyperparameters"]
+        num_gpus = 1 if torch.cuda.is_available() else 0
 
         config = (
             PPOConfig()
@@ -225,7 +281,7 @@ class MAPPOTrainer:
             )
             .environment(env=MAPPOEnvWrapper, env_config=self.env_config)
             .framework("torch")
-            .resources(num_gpus=1)
+            .resources(num_gpus=num_gpus)
             .env_runners(
                 num_env_runners=self.exp_config["environment"]["num_env_runners"],
                 num_envs_per_env_runner=self.exp_config["environment"][
@@ -237,7 +293,7 @@ class MAPPOTrainer:
                 # Prefiero no cambiar esto (por ahora) la verdad
                 # rollout_fragment_length=self.exp_config["hyperparameters"]["rollout_fragment_length"],
             )
-            .learners(num_learners=1, num_gpus_per_learner=1)
+            .learners(num_learners=1, num_gpus_per_learner=num_gpus)
             # Reincorporo la lógica de evaluación que tenías en IPPO
             # Es inconsistente tenerla en uno y no en el otro si es para comparar.
             .evaluation(
@@ -270,11 +326,30 @@ class MAPPOTrainer:
 
     def train(self) -> Path:
         if not ray.is_initialized():
-            ray.init(ignore_reinit_error=True)
+            if platform.system() == "Windows":
+                ray.init(
+                    # log_to_driver=False,
+                    ignore_reinit_error=True,
+                    runtime_env={"env_vars": {"USE_LIBUV": "0"}},
+                    # logging_level=logging.ERROR,
+                )
+            else:
+                ray.init(
+                    # log_to_driver=False,
+                    ignore_reinit_error=True,
+                    # logging_level=logging.ERROR,
+                )
 
         print("Building MAPPO Algorithm...")
         algo_config = self._build_algorithm_config()
-        algo = algo_config.build()
+
+        # Para tensorboard
+        def logger_creator(config):
+            log_dir = self.exp_dir / "tensorboard"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            return UnifiedLogger(config, str(log_dir), loggers=None)
+
+        algo = algo_config.build(logger_creator=logger_creator)
 
         # Checkpoint inicial
         save_dir = self.exp_dir / "checkpoints"

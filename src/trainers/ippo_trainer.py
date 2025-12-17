@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Callable
 
 import ray
 from ray.rllib.algorithms.algorithm import Algorithm
@@ -9,10 +9,29 @@ from ray.rllib.core.rl_module.multi_rl_module import MultiRLModuleSpec
 from ray.rllib.core.rl_module.rl_module import RLModuleSpec
 from ray.rllib.policy.policy import PolicySpec
 from ray.tune.logger import UnifiedLogger
+from ray.rllib.env.multi_agent_env_runner import MultiAgentEnvRunner
 
 from src.envs import MetadriveEnvWrapper
 from src.utils import transfer_module_weights
 from .ppo_metrics_logger import PPOMetricsLogger
+import logging
+import torch
+import platform
+
+
+# --- Patgon Factogy ---
+def get_policy_mapping_fn(parameter_sharing: bool) -> Callable:
+    def mapping_fn(agent_id, episode=None, **kwargs):
+        # If sharing is ON, everyone goes to policy_0
+        if parameter_sharing:
+            return "policy_0"
+
+        match = re.search(r"(\d+)", str(agent_id))
+        if match:
+            return f"policy_{match.group(1)}"
+        return f"policy_{agent_id}"
+
+    return mapping_fn
 
 
 class IPPOTrainer:
@@ -28,6 +47,7 @@ class IPPOTrainer:
         self.exp_dir = exp_dir
         self.start_from_checkpoint = start_from_checkpoint
         self.use_cnn = use_cnn
+        self.parameter_sharing = self.exp_config["agent"].get("parameter_sharing", True)
 
         # Configuración del entorno
         self.env_config = self._build_env_config(env_class)
@@ -83,15 +103,22 @@ class IPPOTrainer:
             "success_reward": env_params.get("success_reward", 10.0),
         }
 
-    @staticmethod
-    def policy_mapping_fn(agent_id: str, episode: Any = None, **kwargs) -> str:
-        """
-        Mapea agentes a políticas. Debe ser estático o externo para serialización en Ray.
-        """
-        match = re.search(r"(\d+)", str(agent_id))
-        if match:
-            return f"policy_{match.group(1)}"
-        return f"policy_{agent_id}"
+    # @staticmethod
+    # def policy_mapping_fn(
+    #    agent_id: str, episode: Any = None, *, parameter_sharing: bool = True, **kwargs
+    # ) -> str:
+    #    """
+    #    Mapea agentes a políticas. Debe ser estático o externo para serialización en Ray.
+    #    """
+    #    if parameter_sharing:
+    #        print("Sharing")
+    #        return "policy_0"
+
+    #    print("not Sharing")
+    #    match = re.search(r"(\d+)", str(agent_id))
+    #    if match:
+    #        return f"policy_{match.group(1)}"
+    #    return f"policy_{agent_id}"
 
     def _initialize_spaces_and_specs(self) -> None:
         """
@@ -106,29 +133,44 @@ class IPPOTrainer:
             # print(temp_env.env.config["vehicle_config"]["lidar"])
 
             rl_module_specs_dict = {}
+            model_config = {"hidden_dim": 256} if self.use_cnn else {}
 
-            for agent_id, obs_space in temp_env.observation_spaces.items():
-                act_space = temp_env.action_spaces[agent_id]
-                policy_id = self.policy_mapping_fn(agent_id, None)
+            if self.parameter_sharing:
+                first_agent_id = next(iter(temp_env.observation_spaces.keys()))
+                obs_space = temp_env.observation_spaces[first_agent_id]
+                act_space = temp_env.action_spaces[first_agent_id]
 
-                # Definición de Policies
-                if policy_id not in self.policies:
-                    self.policies[policy_id] = PolicySpec(
-                        observation_space=obs_space, action_space=act_space, config={}
-                    )
+                self.policies["policy_0"] = PolicySpec(
+                    observation_space=obs_space, action_space=act_space, config={}
+                )
+                rl_module_specs_dict["policy_0"] = RLModuleSpec(
+                    module_class=self.exp_config["agent"]["policy_type"],
+                    observation_space=obs_space,
+                    action_space=act_space,
+                    model_config=model_config,
+                )
+            else:
+                current_mapping_fn = get_policy_mapping_fn(self.parameter_sharing)
 
-                # Definición de RLModules
-                if policy_id not in rl_module_specs_dict:
-                    # TODO: revisar si esto funciona, cual es valor por defecto
-                    # sin CNN
-                    model_config = {"hidden_dim": 256} if self.use_cnn else {}
+                for agent_id, obs_space in temp_env.observation_spaces.items():
+                    act_space = temp_env.action_spaces[agent_id]
+                    policy_id = current_mapping_fn(agent_id)
 
-                    rl_module_specs_dict[policy_id] = RLModuleSpec(
-                        module_class=self.exp_config["agent"]["policy_type"],
-                        observation_space=obs_space,
-                        action_space=act_space,
-                        model_config=model_config,
-                    )
+                    if policy_id not in self.policies:
+                        self.policies[policy_id] = PolicySpec(
+                            observation_space=obs_space,
+                            action_space=act_space,
+                            config={},
+                        )
+
+                    if policy_id not in rl_module_specs_dict:
+                        model_config = {"hidden_dim": 256} if self.use_cnn else {}
+                        rl_module_specs_dict[policy_id] = RLModuleSpec(
+                            module_class=self.exp_config["agent"]["policy_type"],
+                            observation_space=obs_space,
+                            action_space=act_space,
+                            model_config=model_config,
+                        )
 
             self.rl_module_spec = MultiRLModuleSpec(
                 rl_module_specs=rl_module_specs_dict
@@ -141,6 +183,7 @@ class IPPOTrainer:
     def _build_algorithm_config(self) -> PPOConfig:
         """Construye y retorna el objeto PPOConfig."""
         hyperparams = self.exp_config["hyperparameters"]
+        num_gpus = 1 if torch.cuda.is_available() else 0
 
         config = (
             PPOConfig()
@@ -159,12 +202,14 @@ class IPPOTrainer:
                 grad_clip=hyperparams["grad_clip"],
             )
             .multi_agent(
-                policies=self.policies, policy_mapping_fn=self.policy_mapping_fn
+                policies=self.policies,
+                policy_mapping_fn=get_policy_mapping_fn(self.parameter_sharing),
             )
             .environment(env=MetadriveEnvWrapper, env_config=self.env_config)
             .framework("torch")
-            .resources(num_gpus=1)
+            .resources(num_gpus=num_gpus)
             .env_runners(
+                env_runner_cls=MultiAgentEnvRunner,
                 num_env_runners=self.exp_config["environment"]["num_env_runners"],
                 num_envs_per_env_runner=self.exp_config["environment"][
                     "num_envs_per_env_runner"
@@ -175,7 +220,7 @@ class IPPOTrainer:
                 # Prefiero no cambiar esto (por ahora) la verdad
                 # rollout_fragment_length=self.exp_config["hyperparameters"]["rollout_fragment_length"],
             )
-            .learners(num_learners=1, num_gpus_per_learner=1)
+            .learners(num_learners=1, num_gpus_per_learner=num_gpus)
             .evaluation(
                 evaluation_interval=self.exp_config["experiment"].get(
                     "evaluation_interval", 50
@@ -230,8 +275,21 @@ class IPPOTrainer:
 
     def train(self) -> Path:
         """Ejecuta el bucle de entrenamiento."""
+
         if not ray.is_initialized():
-            ray.init(ignore_reinit_error=True)
+            if platform.system() == "Windows":
+                ray.init(
+                    # log_to_driver=False,
+                    ignore_reinit_error=True,
+                    runtime_env={"env_vars": {"USE_LIBUV": "0"}},
+                    # logging_level=logging.ERROR,
+                )
+            else:
+                ray.init(
+                    # log_to_driver=False,
+                    ignore_reinit_error=True,
+                    # logging_level=logging.ERROR,
+                )
 
         print("Building PPO Algorithm...")
         algo_config = self._build_algorithm_config()
@@ -243,6 +301,8 @@ class IPPOTrainer:
             return UnifiedLogger(config, str(log_dir), loggers=None)
 
         algo = algo_config.build(logger_creator=logger_creator)
+
+        print("Finished building PPO Algorithm...")
 
         self._load_weights_if_needed(algo)
 
