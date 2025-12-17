@@ -21,6 +21,7 @@ from src.envs import StackedLidarObservation
 from src.trainers import IPPOTrainer, MAPPOTrainer
 
 from ray.rllib.utils.framework import try_import_torch
+from metadrive.engine.engine_utils import close_engine
 
 ALGORITHMS = {"IPPO": IPPOTrainer, "MAPPO": MAPPOTrainer}
 
@@ -70,6 +71,10 @@ def run_experiments():
         exp_name = exp_config.get("experiment_name", f"exp_run_{i}")
         CURRENT_EXP_DIR = BASE_OUTPUT_DIR / exp_name
         CURRENT_EXP_DIR.mkdir(parents=True, exist_ok=True)
+        final_ckpt = CURRENT_EXP_DIR / "checkpoints" / "final"
+        if final_ckpt.exists():
+            print(f"\n>>> Saltando {exp_name}: Ya existe checkpoint final.")
+            continue
         print(f"\n>>> Preparando: {exp_name}")
 
         with open(CURRENT_EXP_DIR / "config.yaml", "w") as f_out:
@@ -159,6 +164,8 @@ def run_experiments():
         except Exception as e:
             print(f"!!! Error fatal en {exp_name}: {e}")
             raise e
+        finally:
+            close_engine()
 
 
 if __name__ == "__main__":
