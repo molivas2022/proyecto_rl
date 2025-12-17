@@ -1,5 +1,6 @@
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
 from .normalization_wrapper import MetadriveMARLNormalizedRewardEnv
+import numpy as np
 
 
 class MetadriveEnvWrapper(MultiAgentEnv):
@@ -133,22 +134,24 @@ class MetadriveEnvWrapper(MultiAgentEnv):
         return obs_dict, info_dict
 
     def step(self, action_dict):
-        """
-        Paso estándar multi-agente: passthrough al env interno.
-        """
-        (
-            obs_dict,
-            rewards_dict,
-            terminateds_dict,
-            truncateds_dict,
-            infos_dict,
-        ) = self.env.step(action_dict)
+        obs, rewards, terminated, truncated, info = self.env.step(action_dict)
+        global_state = self._get_global_state(obs)
 
-        if terminateds_dict.get("__all__", False) or truncateds_dict.get(
-            "__all__", False
-        ):
-            self.agents = []
-        else:
-            self.agents = list(obs_dict.keys())
+        new_obs = {}
+        all_keys = (
+            set(obs.keys())
+            | set(rewards.keys())
+            | set(terminated.keys())
+            | set(truncated.keys())
+        )
+        all_keys.discard("__all__")
 
-        return obs_dict, rewards_dict, terminateds_dict, truncateds_dict, infos_dict
+        for agent_id in all_keys:
+            if agent_id in obs:
+                local_obs = obs[agent_id]
+            else:
+                local_obs = np.zeros(self.local_obs_dim, dtype=np.float32)
+
+            new_obs[agent_id] = {"obs": local_obs, "state": global_state}
+
+        return new_obs, rewards, terminated, truncated, info
