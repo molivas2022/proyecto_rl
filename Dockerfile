@@ -13,13 +13,13 @@ RUN apt-get update && apt-get install -y \
     libx11-6 \
     git \
     vim \
+    rsync \
     && rm -rf /var/lib/apt/lists/*
 
 # 4. Configurar entorno de trabajo
 WORKDIR /app
 
-# 5. Instalamos tus librerías de Python
-# 5. Instalamos tus librerías de Python (versiones fijadas según conda)
+# 5. Instalamos librerías de Python (versiones fijadas según conda)
 RUN pip install --no-cache-dir \
     numpy==2.2.6 \
     "ray[rllib]==2.51.1" \
@@ -50,14 +50,14 @@ RUN printf '%s\n' \
 # 6. Descarga de Assets de MetaDrive
 RUN python -m metadrive.pull_asset
 
-# Copy the simplified entrypoint
+# Copiar entrypoint
 COPY entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
-# Copy your code (as you already had)
+# Copiar codigo
 COPY . /app
 
-# Open the port for TensorBoard
+# Puerto Tensorboard
 EXPOSE 6006
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
