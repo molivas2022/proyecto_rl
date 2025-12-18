@@ -41,6 +41,3 @@ python train.py
 ```
 
 This will start the training process using the specified configuration.  You can monitor the training progress using TensorBoard or the Ray Tune web UI.
-
-## Examples
-**wip**
