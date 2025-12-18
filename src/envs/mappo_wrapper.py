@@ -33,15 +33,17 @@ class MAPPOEnvWrapper(gym.Wrapper):
         # Define the new Dict observation space for RLlib
         self.observation_spaces = {}
         for agent_id, obs_space in self.env.observation_spaces.items():
-            self.observation_spaces[agent_id] = gym.spaces.Dict({
-                "obs": obs_space,
-                "state": gym.spaces.Box(
-                    low=-np.inf, 
-                    high=np.inf, 
-                    shape=(self.global_state_dim,), 
-                    dtype=np.float32
-                )
-            })
+            self.observation_spaces[agent_id] = gym.spaces.Dict(
+                {
+                    "obs": obs_space,
+                    "state": gym.spaces.Box(
+                        low=-np.inf,
+                        high=np.inf,
+                        shape=(self.global_state_dim,),
+                        dtype=np.float32,
+                    ),
+                }
+            )
         # Update action spaces just in case (usually unchanged)
         self.action_spaces = self.env.action_spaces
 
@@ -50,7 +52,7 @@ class MAPPOEnvWrapper(gym.Wrapper):
         # We iterate by index to ensure consistent order (agent0, agent1, ...)
         # If an agent is missing (not spawned or dead), we pad with zeros.
         for i in range(self.num_agents):
-            key = f"agent{i}" 
+            key = f"agent{i}"
             if key in obs_dict:
                 flat_obs = obs_dict[key].flatten()
             else:
@@ -65,10 +67,7 @@ class MAPPOEnvWrapper(gym.Wrapper):
 
         new_obs = {}
         for agent_id, agent_obs in obs.items():
-            new_obs[agent_id] = {
-                "obs": agent_obs,
-                "state": global_state
-            }
+            new_obs[agent_id] = {"obs": agent_obs, "state": global_state}
         return new_obs, info
 
     def step(self, action_dict):
@@ -77,8 +76,5 @@ class MAPPOEnvWrapper(gym.Wrapper):
 
         new_obs = {}
         for agent_id, agent_obs in obs.items():
-            new_obs[agent_id] = {
-                "obs": agent_obs,
-                "state": global_state
-            }
+            new_obs[agent_id] = {"obs": agent_obs, "state": global_state}
         return new_obs, rewards, terminated, truncated, info

@@ -6,10 +6,12 @@ import ray
 from ray.rllib.algorithms.algorithm import Algorithm
 from ray.rllib.algorithms.ppo import PPOConfig
 from ray.rllib.core.rl_module.multi_rl_module import MultiRLModuleSpec
-from ray.rllib.core.rl_module.rl_module import RLModuleSpec
+from ray.rllib.core.rl_module.rl_module import RLModuleSpec, RLModule
 from ray.rllib.policy.policy import PolicySpec
 from ray.tune.logger import UnifiedLogger
 from ray.rllib.env.multi_agent_env_runner import MultiAgentEnvRunner
+from ray.rllib.policy.policy import Policy
+from ray.rllib.core import COMPONENT_RL_MODULE
 
 from src.envs import MetadriveEnvWrapper
 from src.utils import transfer_module_weights
@@ -40,14 +42,15 @@ class IPPOTrainer:
         exp_config: Dict[str, Any],
         env_class: Any,
         exp_dir: Path,
-        start_from_checkpoint: bool = False,
+        base_checkpoint_path: Optional[Path] = None,
         use_cnn: bool = False,
     ):
         self.exp_config = exp_config.copy()
         self.exp_dir = exp_dir
-        self.start_from_checkpoint = start_from_checkpoint
         self.use_cnn = use_cnn
         self.parameter_sharing = self.exp_config["agent"].get("parameter_sharing", True)
+        self.base_checkpoint_path = base_checkpoint_path
+        self.start_from_checkpoint = base_checkpoint_path is not None
 
         # Configuración del entorno
         self.env_config = self._build_env_config(env_class)
@@ -250,46 +253,81 @@ class IPPOTrainer:
         return config
 
     def _load_weights_if_needed(self, algo: Algorithm) -> None:
-        """Maneja la lógica de transferencia de pesos desde checkpoints base."""
-        if not self.start_from_checkpoint:
+        """
+        Loads RLModule directly from the New API Stack checkpoint structure.
+        Path: checkpoint/learner_group/learner/rl_module/policy_0
+        """
+        if not self.start_from_checkpoint or self.base_checkpoint_path is None:
             return
 
-        checkpoint_path = self.exp_dir / "base_checkpoint"
+        checkpoint_path = Path(self.base_checkpoint_path)
         if not checkpoint_path.exists():
-            raise FileNotFoundError(
-                f"Checkpoint base no encontrado en: {checkpoint_path}"
-            )
+            raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
 
-        print(f"Loading weights from {checkpoint_path}...")
-        source_algo = Algorithm.from_checkpoint(checkpoint_path)
+        print(f"SURGICAL LOAD: Extracting RLModule from {checkpoint_path}...")
 
-        # Lógica de mismatch de políticas
-        idol = (
-            "policy_0"
-            if len(self.policies) != len(source_algo.config.policies)
-            else None
+        # 1. Construct the path to the policy module
+        # User structure: learner_group -> learner -> rl_module -> policy_0
+
+        # We try strict path first
+        module_path = (
+            checkpoint_path / "learner_group" / "learner" / "rl_module" / "policy_0"
         )
 
-        transfer_module_weights(source_algo, algo, self.policies, idol)
-        source_algo.stop()
+        if not module_path.exists():
+            # Fallback: maybe there is a 'default_policy' instead of 'policy_0'?
+            # Or maybe 'learner_group' is named differently.
+            print(f"Strict path not found: {module_path}")
+
+            # Search logic: find the first directory inside rl_module
+            rl_module_root = checkpoint_path / "learner_group" / "learner" / "rl_module"
+            if rl_module_root.exists():
+                available = [d for d in rl_module_root.iterdir() if d.is_dir()]
+                if available:
+                    module_path = available[0]
+                    print(f"Found alternative module path: {module_path}")
+                else:
+                    print(f"Error: 'rl_module' directory is empty at {rl_module_root}")
+                    return
+            else:
+                print(
+                    f"Error: Could not locate 'learner_group/learner/rl_module' in {checkpoint_path}"
+                )
+                return
+
+        print(f"Loading RLModule from disk (CPU): {module_path.name}")
+
+        try:
+            # 2. Load RLModule (Lightweight, no Ray Actors)
+            # RLModule.from_checkpoint loads the state dict
+            restored_module = RLModule.from_checkpoint(module_path)
+            weights = restored_module.get_state()
+
+            # 3. Inject Weights
+            print(f"Injecting weights into new Trainer...")
+
+            new_state = {}
+            for target_pid in self.policies.keys():
+                new_state[target_pid] = weights
+
+            # Set state on Learner
+            algo.learner_group.set_state({COMPONENT_RL_MODULE: new_state})
+
+            # Sync to EnvRunners
+            algo.env_runner_group.sync_weights(
+                from_worker_or_learner_group=algo.learner_group, inference_only=True
+            )
+
+            print(f">>> Success! RLModule weights injected.")
+
+        except Exception as e:
+            print(f"!!! Critical Error during weight injection: {e}")
+            import traceback
+
+            traceback.print_exc()
 
     def train(self) -> Path:
         """Ejecuta el bucle de entrenamiento."""
-
-        if not ray.is_initialized():
-            if platform.system() == "Windows":
-                ray.init(
-                    # log_to_driver=False,
-                    ignore_reinit_error=True,
-                    runtime_env={"env_vars": {"USE_LIBUV": "0"}},
-                    # logging_level=logging.ERROR,
-                )
-            else:
-                ray.init(
-                    # log_to_driver=False,
-                    ignore_reinit_error=True,
-                    # logging_level=logging.ERROR,
-                )
 
         print("Building PPO Algorithm...")
         algo_config = self._build_algorithm_config()

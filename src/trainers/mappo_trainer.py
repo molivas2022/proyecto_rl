@@ -325,21 +325,6 @@ class MAPPOTrainer:
         return config
 
     def train(self) -> Path:
-        if not ray.is_initialized():
-            if platform.system() == "Windows":
-                ray.init(
-                    # log_to_driver=False,
-                    ignore_reinit_error=True,
-                    runtime_env={"env_vars": {"USE_LIBUV": "0"}},
-                    # logging_level=logging.ERROR,
-                )
-            else:
-                ray.init(
-                    # log_to_driver=False,
-                    ignore_reinit_error=True,
-                    # logging_level=logging.ERROR,
-                )
-
         print("Building MAPPO Algorithm...")
         algo_config = self._build_algorithm_config()
 

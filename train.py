@@ -19,9 +19,12 @@ from metadrive.obs.state_obs import LidarStateObservation
 from src.models import IPPOCNN, MetaDriveStackedCNN, MAPPOCNN, MAPPOMLP
 from src.envs import StackedLidarObservation
 from src.trainers import IPPOTrainer, MAPPOTrainer
+from src.trainers.run_curriculum import run_curriculum
 
 from ray.rllib.utils.framework import try_import_torch
 from metadrive.engine.engine_utils import close_engine
+import ray
+import platform
 
 ALGORITHMS = {"IPPO": IPPOTrainer, "MAPPO": MAPPOTrainer}
 
@@ -80,6 +83,37 @@ def run_experiments():
         with open(CURRENT_EXP_DIR / "config.yaml", "w") as f_out:
             yaml.dump(exp_config, f_out)
 
+        base_checkpoint_path = (
+            None  # Check if we should load from a previous experiment
+        )
+        experiment_section = exp_config.get("experiment", {})
+
+        if experiment_section.get("start_from_checkpoint", False):
+            base_ref = experiment_section.get("base_checkpoint")
+            if base_ref:
+                # 1. Try absolute path
+                if Path(base_ref).exists():
+                    base_checkpoint_path = Path(base_ref)
+                else:
+                    # 2. Try resolving as Experiment Name in same output dir
+                    potential_path = (
+                        BASE_OUTPUT_DIR / base_ref / "checkpoints" / "final"
+                    )
+                    if potential_path.exists():
+                        base_checkpoint_path = potential_path
+                    else:
+                        print(
+                            f"!!! ADVERTENCIA: No se encontró checkpoint base: {base_ref}"
+                        )
+                        print(f"    Buscado en: {potential_path}")
+                        # Depending on preference, maybe we shouldn't start if missing?
+                        # For now, we continue (starting fresh) but warn.
+
+        if base_checkpoint_path:
+            print(
+                f">>> Enlazando curriculum: Cargando pesos desde {base_checkpoint_path.name}"
+            )
+
         # ---------------------------------------------------------
         # 1. EXTRACCIÓN Y VALIDACIÓN DE STRINGS DEL YAML
         # ---------------------------------------------------------
@@ -90,6 +124,7 @@ def run_experiments():
             env_str = exp_config["environment"]["type"]
             obs_str = exp_config["agent"]["observation"]
             policy_str = exp_config["agent"]["policy_type"]
+
         except KeyError as e:
             raise KeyError(
                 f"Falta la clave {e} en la configuración del experimento {exp_name}"
@@ -139,16 +174,31 @@ def run_experiments():
                 f">>> Ejecutando con: Algo={algo_str}, Env={env_str}, CNN={use_cnn_flag}"
             )
 
+            if not ray.is_initialized():
+                if platform.system() == "Windows":
+                    ray.init(
+                        # log_to_driver=False,
+                        ignore_reinit_error=True,
+                        runtime_env={"env_vars": {"USE_LIBUV": "0"}},
+                        # logging_level=logging.ERROR,
+                    )
+                else:
+                    ray.init(
+                        # log_to_driver=False,
+                        ignore_reinit_error=True,
+                        # logging_level=logging.ERROR,
+                    )
+            # print(f">>> AVAILABLE RESOURCES: {ray.available_resources()}")
+
             # Instanciamos la clase dinámica (TrainerClass)
             # Pasamos la clase de entorno dinámica (EnvClass)
             if algo_str == "IPPO":
-
                 exp = IPPOTrainer(
                     exp_config=exp_config,
                     env_class=EnvClass,
                     exp_dir=CURRENT_EXP_DIR,
-                    start_from_checkpoint=False,
                     use_cnn=use_cnn_flag,
+                    base_checkpoint_path=base_checkpoint_path,
                 )
             elif algo_str == "MAPPO":
                 exp = MAPPOTrainer(
