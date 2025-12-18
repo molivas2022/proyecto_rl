@@ -16,9 +16,7 @@ from ray.rllib.core import COMPONENT_RL_MODULE
 from src.envs import MetadriveEnvWrapper
 from src.utils import transfer_module_weights
 from .ppo_metrics_logger import PPOMetricsLogger
-import logging
 import torch
-import platform
 
 
 # --- Patgon Factogy ---
@@ -106,22 +104,6 @@ class IPPOTrainer:
             "success_reward": env_params.get("success_reward", 10.0),
         }
 
-    # @staticmethod
-    # def policy_mapping_fn(
-    #    agent_id: str, episode: Any = None, *, parameter_sharing: bool = True, **kwargs
-    # ) -> str:
-    #    """
-    #    Mapea agentes a políticas. Debe ser estático o externo para serialización en Ray.
-    #    """
-    #    if parameter_sharing:
-    #        print("Sharing")
-    #        return "policy_0"
-
-    #    print("not Sharing")
-    #    match = re.search(r"(\d+)", str(agent_id))
-    #    if match:
-    #        return f"policy_{match.group(1)}"
-    #    return f"policy_{agent_id}"
 
     def _initialize_spaces_and_specs(self) -> None:
         """
@@ -266,20 +248,14 @@ class IPPOTrainer:
 
         print(f"SURGICAL LOAD: Extracting RLModule from {checkpoint_path}...")
 
-        # 1. Construct the path to the policy module
-        # User structure: learner_group -> learner -> rl_module -> policy_0
 
-        # We try strict path first
         module_path = (
             checkpoint_path / "learner_group" / "learner" / "rl_module" / "policy_0"
         )
 
         if not module_path.exists():
-            # Fallback: maybe there is a 'default_policy' instead of 'policy_0'?
-            # Or maybe 'learner_group' is named differently.
             print(f"Strict path not found: {module_path}")
 
-            # Search logic: find the first directory inside rl_module
             rl_module_root = checkpoint_path / "learner_group" / "learner" / "rl_module"
             if rl_module_root.exists():
                 available = [d for d in rl_module_root.iterdir() if d.is_dir()]
@@ -298,22 +274,17 @@ class IPPOTrainer:
         print(f"Loading RLModule from disk (CPU): {module_path.name}")
 
         try:
-            # 2. Load RLModule (Lightweight, no Ray Actors)
-            # RLModule.from_checkpoint loads the state dict
             restored_module = RLModule.from_checkpoint(module_path)
             weights = restored_module.get_state()
 
-            # 3. Inject Weights
             print(f"Injecting weights into new Trainer...")
 
             new_state = {}
             for target_pid in self.policies.keys():
                 new_state[target_pid] = weights
 
-            # Set state on Learner
             algo.learner_group.set_state({COMPONENT_RL_MODULE: new_state})
 
-            # Sync to EnvRunners
             algo.env_runner_group.sync_weights(
                 from_worker_or_learner_group=algo.learner_group, inference_only=True
             )

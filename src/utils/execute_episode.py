@@ -22,7 +22,6 @@ def actions_from_distributions(module_dict, obs, env):
     action_dict = {}
 
     for agent in obs:
-        # Skip the "__all__" key if it exists in obs
         if agent == "__all__":
             continue
 
@@ -60,7 +59,6 @@ def actions_from_distributions(module_dict, obs, env):
 def execute_one_episode(env, module_dict, title=None, enable_render=False):
     obs, info = env.reset()
 
-    # FIX: Get the base env to access the engine safely
     base_env = get_base_env(env)
     if base_env is None and enable_render:
         print("Warning: Could not find base MetaDriveEnv for rendering info.")
@@ -77,7 +75,6 @@ def execute_one_episode(env, module_dict, title=None, enable_render=False):
             camera_position=(100, 0),
             screen_size=(500, 500),
             screen_record=True,
-            # FIX: Use base_env.engine instead of env.engine
             text={"episode_step": base_env.engine.episode_step, "method": title or ""},
         )
 
@@ -95,7 +92,6 @@ def execute_one_episode(env, module_dict, title=None, enable_render=False):
                 camera_position=(100, 0),
                 screen_size=(500, 500),
                 screen_record=True,
-                # FIX: Use base_env.engine instead of env.engine
                 text={"episode_step": base_env.engine.episode_step, "method": title},
             )
 

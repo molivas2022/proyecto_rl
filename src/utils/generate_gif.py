@@ -64,7 +64,6 @@ def generate_gif(
     except Exception as e:
         raise RuntimeError(f"Fallo instanciando entorno: {e}")
 
-    # Headless Render Patch
     original_render = env.render
 
     def headless_render(*args, **kwargs):
@@ -86,11 +85,9 @@ def generate_gif(
     mapping_fn = get_policy_mapping_fn(parameter_sharing)
 
     try:
-        # Check actual number of agents in env if possible, or use config
         num_agents = envconfig.get("num_agents", 10)
         available_policies = list(algo.get_weights().keys())
 
-        # Logic to map agents to policies
         for i in range(num_agents):
             agent_id = f"agent{i}"
             policy_id = mapping_fn(agent_id)

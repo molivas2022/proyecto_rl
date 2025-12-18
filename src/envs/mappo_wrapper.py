@@ -5,7 +5,7 @@ import gymnasium as gym
 from .metadrive_env_wrapper import MetadriveEnvWrapper
 
 
-# --- 1. Environment Wrapper for Global State ---
+# --- 1. Wrapper MAPPO para obs global ---
 class MAPPOEnvWrapper(gym.Wrapper):
     """
     Wraps MetadriveEnvWrapper to provide a Dict observation:
