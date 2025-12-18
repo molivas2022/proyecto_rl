@@ -56,6 +56,7 @@ if __name__ == "__main__":
                 random_spawn_lane_index=True,
                 traffic_density=0,
                 start_seed=curr_seed,
+                allow_respawn=False,
                 # agent_observation=StackedLidarObservation
             ),
             modelpath=modelpath,

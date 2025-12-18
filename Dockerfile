@@ -60,4 +60,5 @@ COPY . /app
 # Puerto Tensorboard
 EXPOSE 6006
 
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+# ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["sleep", "infinity"]

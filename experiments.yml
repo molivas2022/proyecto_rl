@@ -1,27 +1,67 @@
-- experiment_name: "ippo_norm_cnn_const_lr_param_share"
+# --- Fase 1: Solo Física (Roundabout) ---
+- experiment_name: "Phase1_SoloPhysics"
   experiment: 
-    #seed: 100
-    checkpoint_freq: 20
-    start_from_checkpoint: False
+    checkpoint_freq: 50
+    start_from_checkpoint: False 
     log_save_freq: 10
-    evaluation_interval: 10       # cada cuantos episodios hacer evaluación
-    evaluation_duration: 3       # cuantos experimentos promediar
+    evaluation_interval: 20
+    evaluation_duration: 3
   environment:
-    type: "PGMA"
-    horizon: 1000
-    num_agents: 10
+    type: "Roundabout"
+    num_agents: 1 
+    start_seed: 42 
+    horizon: 500
+    traffic_density: 0.0
     normalize_reward: True
     num_env_runners: 24
-    num_envs_per_env_runner: 1 # solo puede ser 1
+    num_envs_per_env_runner: 1 
     num_cpus_per_env_runner: 1
     allow_respawn: False
-    traffic_density: 0
-    # Estas son necesarias para el random
-    start_seed: 42 
-    num_scenarios: 1000
-    map: 4
-    # Rewards
-    crash_vehicle_penalty: 10.0
+    crash_vehicle_penalty: 5.0
+    crash_object_penalty: 5.0
+    out_of_road_penalty: 5.0
+    speed_reward: 0.1
+    driving_reward: 1.0
+    success_reward: 10.0
+  agent:
+    algorithm: "IPPO"
+    observation: "Lidar"
+    policy_type: "IPPOCNN"
+    parameter_sharing: True
+  hyperparameters:
+    learning_rate: 0.0003
+    n_epochs: 250 
+    gamma: 0.995
+    clip_param: 0.2
+    lambda: 0.95
+    entropy_coeff: 0.02
+    rollout_fragment_length: 256
+    minibatch_size: 512
+    train_batch_size: 4096
+    vf_clip_param: 100.0
+    grad_clip: 0.5
+
+# --- Fase 2: Obstaculos (Bottleneck) ---
+- experiment_name: "Phase2_ObstacleCourse"
+  experiment:
+    base_checkpoint: "Phase1_SoloPhysics" # <-- Link a fase anterior
+    start_from_checkpoint: True 
+    checkpoint_freq: 50
+    log_save_freq: 10
+    evaluation_interval: 20
+    evaluation_duration: 3
+  environment:
+    type: "Bottleneck" 
+    num_agents: 1
+    start_seed: 42
+    horizon: 1000
+    traffic_density: 0.1 
+    normalize_reward: True
+    num_env_runners: 24
+    num_envs_per_env_runner: 1
+    num_cpus_per_env_runner: 1
+    allow_respawn: False
+    crash_vehicle_penalty: 10.0 
     crash_object_penalty: 10.0
     out_of_road_penalty: 10.0
     speed_reward: 0.1
@@ -30,17 +70,105 @@
   agent:
     algorithm: "IPPO"
     observation: "Lidar"
-    policy_type: "IPPOCNN"  # en mapo esto es siempre MLP
+    policy_type: "IPPOCNN"
     parameter_sharing: True
   hyperparameters:
-    learning_rate: [[0, 0.001], [600_000, 0.0001]]
+    learning_rate: 0.0003
+    n_epochs: 250
+    gamma: 0.995
+    clip_param: 0.2
+    lambda: 0.95
+    entropy_coeff: 0.01 
+    rollout_fragment_length: 256
+    minibatch_size: 512
+    train_batch_size: 4096
+    vf_clip_param: 100.0
+    grad_clip: 0.5
+
+# --- Fase 3: Guerra de los clones (Roundabout Multi-Agent) ---
+- experiment_name: "Phase3_TheCloneWar"
+  experiment:
+    base_checkpoint: "Phase2_ObstacleCourse"
+    start_from_checkpoint: True
+    checkpoint_freq: 50
+    log_save_freq: 10
+    evaluation_interval: 20
+    evaluation_duration: 3
+  environment:
+    type: "Roundabout" 
+    num_agents: 4
+    start_seed: 42
+    horizon: 1000
+    traffic_density: 0.05
+    normalize_reward: True
+    num_env_runners: 24
+    num_envs_per_env_runner: 1
+    num_cpus_per_env_runner: 1
+    allow_respawn: False
+    crash_vehicle_penalty: 15.0 
+    crash_object_penalty: 10.0
+    out_of_road_penalty: 10.0
+    speed_reward: 0.1
+    driving_reward: 1.0
+    success_reward: 20.0
+  agent:
+    algorithm: "IPPO"
+    observation: "Lidar"
+    policy_type: "IPPOCNN"
+    parameter_sharing: True
+  hyperparameters:
+    learning_rate: 0.0001 
+    n_epochs: 250
+    gamma: 0.995
+    clip_param: 0.2
+    lambda: 0.95
+    entropy_coeff: 0.015 
+    rollout_fragment_length: 256
+    minibatch_size: 512
+    train_batch_size: 4096
+    vf_clip_param: 100.0
+    grad_clip: 0.5
+
+# --- FASE 4: Escalar (Intersection) ---
+- experiment_name: "Phase4_FullScale"
+  experiment:
+    base_checkpoint: "Phase3_TheCloneWar"
+    start_from_checkpoint: True
+    checkpoint_freq: 50
+    log_save_freq: 10
+    evaluation_interval: 20
+    evaluation_duration: 3
+  environment:
+    type: "Intersection" 
+    num_agents: 10 
+    start_seed: 42
+    horizon: 1000
+    traffic_density: 0.1
+    normalize_reward: True
+    num_env_runners: 24
+    num_envs_per_env_runner: 1
+    num_cpus_per_env_runner: 1
+    allow_respawn: False
+    crash_vehicle_penalty: 20.0
+    crash_object_penalty: 10.0
+    out_of_road_penalty: 10.0
+    speed_reward: 0.1
+    driving_reward: 1.0
+    success_reward: 30.0
+  agent:
+    algorithm: "IPPO"
+    observation: "Lidar"
+    policy_type: "IPPOCNN"
+    parameter_sharing: True
+  hyperparameters:
+    learning_rate: 0.00005 
     n_epochs: 500
     gamma: 0.995
     clip_param: 0.2
     lambda: 0.95
-    entropy_coeff: [[0, 0.005], [600_000, 0.001]]
+    entropy_coeff: 0.001
     rollout_fragment_length: 256
     minibatch_size: 512
     train_batch_size: 4096
-    vf_clip_param: 100.0 # Basicamente no clipping
+    vf_clip_param: 100.0
     grad_clip: 0.5
