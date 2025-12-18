@@ -19,7 +19,6 @@ from metadrive.obs.state_obs import LidarStateObservation
 from src.models import IPPOCNN, MetaDriveStackedCNN, MAPPOCNN, MAPPOMLP
 from src.envs import StackedLidarObservation
 from src.trainers import IPPOTrainer, MAPPOTrainer
-from src.trainers.run_curriculum import run_curriculum
 
 from ray.rllib.utils.framework import try_import_torch
 from metadrive.engine.engine_utils import close_engine
